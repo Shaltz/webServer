@@ -21,6 +21,12 @@ headerJS = '
 			\r\n\r\n
 			'
 
+headerPLAIN = '
+			HTTP/1.0 200 OK\r\n
+			Content-Type: text/plain
+			\r\n\r\n
+			'
+
 headerCSS = '
 			HTTP/1.0 200 OK\r\n
 			Content-Type: text/css
@@ -81,6 +87,7 @@ server = net.createServer (socket)->
 		else
 			realPath = path.join(www, filePath)
 			switch path.extname(filePath)
+				when '.map' then header = headerPLAIN
 				when '.css' then header = headerCSS
 				when '.js' then header = headerJS
 				when '.jpg' then header = headerJPG
