@@ -98,7 +98,7 @@ server = net.createServer (socket)->
 server.listen 3333, ->
 	console.log 'server ONline'
 
-processFile = cbProcessFile = (fileStream, socket)->
+processFile = (fileStream, socket)->
 	fileStream.pipe socket
 	fileStream.on 'end', cbFileStream =->
 		socket.end()
