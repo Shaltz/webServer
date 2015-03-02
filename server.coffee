@@ -2,7 +2,8 @@ net = require 'net'
 fs = require 'fs'
 path = require 'path'
 
-header200 = '
+
+headerHTML = '
 			HTTP/1.0 200 OK\r\n
 			Content-Type: text/html
 			\r\n\r\n
@@ -26,24 +27,23 @@ headerCSS = '
 			\r\n\r\n
 			'
 
-headerImg = '
+headerJPG = '
 			HTTP/1.0 200 OK\r\n
 			Content-Type: image/jpeg
 			\r\n\r\n
 			'
 
-headerAudio = '
+headerAUDIO = '
 			HTTP/1.0 200 OK\r\n
 			Content-Type: audio/mpeg3
 			\r\n\r\n
 			'
 
-headerVideo = '
+headerVIDEO = '
 			HTTP/1.0 200 OK\r\n
 			Content-Type: video/mpeg
 			\r\n\r\n
 			'
-
 
 htmlTest = '<!DOCTYPE HTML>
 	<html>
@@ -63,9 +63,7 @@ htmlError = '<!DOCTYPE HTML>
 		</body>
 	</html>'
 
-
 www = './www'
-
 
 server = net.createServer (socket)->
 
@@ -77,37 +75,33 @@ server = net.createServer (socket)->
 		protocol = statusLine.substr statusLine.indexOf('HTTP')
 		filePath = statusLine.substring statusLine.indexOf(method) + method.length + 1, statusLine.indexOf ' HTTP'
 
-		# console.log 'str : ' + str
-		# console.log 'StatusLine : ' + statusLine
-		# console.log 'method : ' + method
-		console.log 'filePath : ' + filePath
-		# console.log 'protocol : ' + protocol
-
-		realPath =  path.join(www, 'index.html')
-
 		if filePath is '/'
-
-			fileStream = fs.createReadStream realPath
-			socket.write header200, -> fileStream.pipe socket
-			fileStream.on 'end', ->
-				socket.end()
+			realPath = path.join(www, 'index.html')
+			header = headerHTML
 		else
-			fileStream = fs.createReadStream path.join(www, filePath)
-
+			realPath = path.join(www, filePath)
 			switch path.extname(filePath)
-				when '.css' then socket.write headerCSS, processFile(fileStream, socket)
-				when '.js' then socket.write headerJS, processFile(fileStream, socket)
-				when '.jpg' then socket.write headerImg, processFile(fileStream, socket)
-				when '.mp3' then socket.write headerAudio, processFile(fileStream, socket)
-				when '.mp4' then socket.write headerVideo, processFile(fileStream, socket)
+				when '.css' then header = headerCSS
+				when '.js' then header = headerJS
+				when '.jpg' then header = headerJPG
+				when '.mp3' then header = headerAUDIO
+				when '.mp4' then header = headerVIDEO
+				else header = header404
 
+		fileStream = fs.createReadStream realPath
 
-processFile = (fileStream, socket)->
-	fileStream.pipe socket
-	fileStream.on 'end', cbFileStreamMP3 = ->
-		socket.end()
-
+		if header isnt header404
+			socket.write header, processFile(fileStream, socket)
+		else
+			socket.end(header + htmlError)
 
 server.listen 3333, ->
 	console.log 'server ONline'
+
+processFile = cbProcessFile = (fileStream, socket)->
+	fileStream.pipe socket
+	fileStream.on 'end', cbFileStream =->
+		socket.end()
+
+
 
