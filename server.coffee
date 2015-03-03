@@ -2,63 +2,7 @@ net = require 'net'
 fs = require 'fs'
 path = require 'path'
 
-
-headerHTML = '
-			HTTP/1.0 200 OK\r\n
-			Content-Type: text/html
-			\r\n\r\n
-			'
-
-header404 = '
-			HTTP/1.0 404 Not Found\r\n
-			Content-Type: text/html
-			\r\n\r\n
-			'
-
-headerJS = '
-			HTTP/1.0 200 OK\r\n
-			Content-Type: text/javascript
-			\r\n\r\n
-			'
-
-headerPLAIN = '
-			HTTP/1.0 200 OK\r\n
-			Content-Type: text/plain
-			\r\n\r\n
-			'
-
-headerCSS = '
-			HTTP/1.0 200 OK\r\n
-			Content-Type: text/css
-			\r\n\r\n
-			'
-
-headerJPG = '
-			HTTP/1.0 200 OK\r\n
-			Content-Type: image/jpeg
-			\r\n\r\n
-			'
-
-headerAUDIO = '
-			HTTP/1.0 200 OK\r\n
-			Content-Type: audio/mpeg3
-			\r\n\r\n
-			'
-
-headerVIDEO = '
-			HTTP/1.0 200 OK\r\n
-			Content-Type: video/mpeg
-			\r\n\r\n
-			'
-
-htmlTest = '<!DOCTYPE HTML>
-	<html>
-		<head>
-		</head>
-		<body>
-			Ceci est un test HTML
-		</body>
-	</html>'
+www = './www'
 
 htmlError = '<!DOCTYPE HTML>
 	<html>
@@ -69,46 +13,68 @@ htmlError = '<!DOCTYPE HTML>
 		</body>
 	</html>'
 
-www = './www'
 
+contentTypeArray =
+	html: 'text/html'
+	map: 'text/plain'
+	css: 'text/css'
+	js: 'application/javascript'
+	jpg: 'image/jpeg'
+	jpeg: 'image/jpeg'
+	mp3: 'audio/mp3'
+	mp4: 'video/mpeg'
+
+
+#reqHeader
+statusLine = null
+method = null
+protocol = null
+filePath = null
+
+#resHeader
+extension = null
+contentType = null
+
+
+# mes OUMPA-LOUMPA
+processReqHeader = (reqHeader)->
+	str = reqHeader.toString 'utf8'
+	statusLine = str.substr 0, str.indexOf('\r\n')
+	method = statusLine.substr 0, statusLine.indexOf(' ')
+	protocol = statusLine.substr statusLine.indexOf('HTTP') #inutile
+	filePath = statusLine.substring statusLine.indexOf(method) + method.length + 1, statusLine.indexOf ' HTTP'
+
+processResHeader = (realPath)->
+	extension = path.extname realPath
+	extension = extension.substr 1
+	contentType = contentTypeArray[extension]
+
+processResponse = (respHeader, fileStream, socket)->
+	socket.write respHeader, ->
+		fileStream.pipe socket
+		fileStream.on 'end', cbFileStream =->
+			socket.end()
+
+
+# Willy Wonka
 server = net.createServer (socket)->
+	socket.on 'data', cbSocketOnDATA = (reqHeader)->
 
-	socket.on 'data', cbSocketOnDATA = (header)->
+		filePath = processReqHeader reqHeader
 
-		str = header.toString 'utf8'
-		statusLine = str.substr 0, str.indexOf('\r\n')
-		method = statusLine.substr 0, statusLine.indexOf(' ')
-		protocol = statusLine.substr statusLine.indexOf('HTTP')
-		filePath = statusLine.substring statusLine.indexOf(method) + method.length + 1, statusLine.indexOf ' HTTP'
+		realPath = path.join(www, if filePath is '/' then 'index.html' else filePath)
 
-		if filePath is '/'
-			realPath = path.join(www, 'index.html')
-			header = headerHTML
-		else
-			realPath = path.join(www, filePath)
-			switch path.extname(filePath)
-				when '.map' then header = headerPLAIN
-				when '.css' then header = headerCSS
-				when '.js' then header = headerJS
-				when '.jpg' then header = headerJPG
-				when '.mp3' then header = headerAUDIO
-				when '.mp4' then header = headerVIDEO
-				else header = header404
+		processResHeader realPath
 
+		respHeader = "
+					HTTP/1.0 200 OK\r\n
+					Content-Type: #{contentType}
+					\r\n\r\n
+					"
 		fileStream = fs.createReadStream realPath
 
-		if header isnt header404
-			socket.write header, processFile(fileStream, socket)
-		else
-			socket.end(header + htmlError)
+		processResponse respHeader, fileStream, socket
 
 server.listen 3333, ->
-	console.log 'server ONline'
-
-processFile = (fileStream, socket)->
-	fileStream.pipe socket
-	fileStream.on 'end', cbFileStream =->
-		socket.end()
-
-
+	console.log 'server ONline\r\n'
 
