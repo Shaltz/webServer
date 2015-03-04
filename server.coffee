@@ -1,6 +1,6 @@
 ###############################################################################
 ##
-##	TODO :	- Dynamicaly creates the response Header
+##	TODO :	-
 ##
 ###############################################################################
 
@@ -23,12 +23,13 @@ statutCodeArray =
 contentTypeArray =
 	html: 'text/html'
 	'': 'text/html'
+	txt: 'text/plain'
 	map: 'text/plain'
 	css: 'text/css'
 	js: 'application/javascript'
 	jpg: 'image/jpeg'
 	jpeg: 'image/jpeg'
-	mp3: 'audio/mp3'
+	mp3: 'audio/mpeg3'
 	mp4: 'video/mpeg'
 
 
@@ -82,10 +83,9 @@ parseReqHeader = (reqHeader)->
 	# Extract the file to serve (or filePath) from the status line
 	filePath = statusLine.substring statusLine.indexOf(method) + method.length + 1, statusLine.indexOf ' HTTP'
 
+
 # Process the Response from all the data available
 processResponse = (realPath, socket)->
-
-	statutCode = 200
 
 	# Get the MIME content-type from the file extension
 	realPath = path.normalize(realPath) # to take care of // or /.. or /.
@@ -96,13 +96,13 @@ processResponse = (realPath, socket)->
 	# Create a readable fileStream from the realPath
 	fileStream = fs.createReadStream realPath
 
-	# If their is a readable filestream, pipe it to the socket
-	fileStream.on 'readable', ->
+	# If there is a readable filestream, pipe it to the socket
+	fileStream.on 'open', ->
 		respHeader = createRespHeader 200, contentType
 		socket.write respHeader, ->
 			fileStream.pipe socket
 
-	# When their is no more data to read from the fileStream, close the socket
+	# When there is no more data to read from the fileStream, close the socket
 	fileStream.on 'end', ->
 		socket.end()
 
@@ -112,11 +112,6 @@ processResponse = (realPath, socket)->
 		respHeader = createRespHeader 404, contentType
 		socket.write respHeader, ->
 			socket.end createError404(err)
-
-	# SOCKET error, log it and close the socket
-	socket.on 'error', (err)->
-		console.error 'SOCKET : il y a une erreur:', err.toString 'utf8'
-		socket.end()
 
 
 ### WILLY WONKA ###############################################################
@@ -136,6 +131,10 @@ server = net.createServer (socket)->
 		# Create the response (header & body) and send it
 		processResponse realPath, socket
 
+	# SOCKET error, log it and close the socket
+	socket.on 'error', (err)->
+		console.error 'SOCKET : il y a une erreur:', err.toString 'utf8'
+		socket.end()
 
 # Launch the server and listen to port 3333
 server.listen _PORT, ->
