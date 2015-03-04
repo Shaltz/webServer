@@ -18,7 +18,6 @@ _WWW = './www'
 statutCodeArray =
 	200: 'OK !!'
 	404: 'Not Found !!'
-	500: 'Internal Server Error !!'
 
 # The Content-Types Array
 contentTypeArray =
@@ -96,11 +95,6 @@ processResponse = (realPath, socket)->
 
 	# Create a readable fileStream from the realPath
 	fileStream = fs.createReadStream realPath
-
-	# respHeader = createRespHeader(statutCode, contentType)
-
-	# Write to the socket the response header
-	# socket.write respHeader, ->
 
 	# If their is a readable filestream, pipe it to the socket
 	fileStream.on 'readable', ->
