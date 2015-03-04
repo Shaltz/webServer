@@ -13,6 +13,10 @@ htmlError = '<!DOCTYPE HTML>
 		</body>
 	</html>'
 
+statutCode =
+	200: 'OK !!'
+	404: 'Not Found !!'
+
 
 contentTypeArray =
 	html: 'text/html'
@@ -26,18 +30,12 @@ contentTypeArray =
 
 
 #reqHeader
-statusLine = null
-method = null
-protocol = null
 filePath = null
 
-#resHeader
-extension = null
-contentType = null
 
-
-# mes OUMPA-LOUMPA
+### mes OUMPA-LOUMPA ###
 parseReqHeader = (reqHeader)->
+
 	str = reqHeader.toString 'utf8'
 	statusLine = str.substr 0, str.indexOf('\r\n')
 	method = statusLine.substr 0, statusLine.indexOf(' ')
@@ -47,42 +45,50 @@ parseReqHeader = (reqHeader)->
 
 processResponse = (realPath, socket)->
 
+	# Getting the MIME content-type from the file extension
 	extension = path.extname realPath
 	extension = extension.substr 1
 	contentType = contentTypeArray[extension]
 
-	respHeader = "
-				HTTP/1.0 200 OK\r\n
-				Content-Type: #{contentType}
-				\r\n\r\n
-				"
+	# Creating the response header
+	respHeader = "HTTP/1.0 200 OK\r\nContent-Type: #{contentType}\r\n\r\n"
 
+	# Creating a readable fileStream from the realPath
 	fileStream = fs.createReadStream realPath
 
+	# Write to the socket the response header
 	socket.write respHeader, ->
+
+		# If their is a readable filestream, pipe it to the socket
 		fileStream.on 'readable', ->
 			fileStream.pipe socket
+
+		# When their is no more data to read from the fileStream, close the socket
 		fileStream.on 'end', ->
 			socket.end()
 
-		# FILESTREAM error
+		# FILESTREAM error, log it and close the socket
 		fileStream.on 'error', (err)->
 			console.error 'FILESTREAM : il y a une erreur :', err.toString 'utf8'
 			socket.end()
 
-	# SOCKET error
+	# SOCKET error, log it and close the socket
 	socket.on 'error', (err)->
 		console.error 'SOCKET : il y a une erreur:', err.toString 'utf8'
 		socket.end()
 
 
-# Willy Wonka
+### Willy Wonka ###
 server = net.createServer (socket)->
 	socket.on 'data', (reqHeader)->
 
+		# Get the filePath (the file to serve) from the request Header
 		filePath = parseReqHeader reqHeader
+
+		# Turn the filePath into a pseudo 'absolute' path
 		realPath = path.join(www, if filePath is '/' then 'index.html' else filePath)
 
+		# Process the response from the realPath and the socket
 		processResponse realPath, socket
 
 server.listen 3333, ->
