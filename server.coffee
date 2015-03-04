@@ -18,11 +18,11 @@ htmlError = "<!DOCTYPE HTML>
 			<link rel='stylesheet' href='//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css'/>
 		</head>
 		<body>
-			<div style='width:300px; margin:0 auto;'><i class='fa fa-ban fa-5x'></i></div>
-			<div style='width:800px; height:600px; margin:0 auto;'><h1>The page you're looking for doesn\'t exist !!</h1></div>
+			<div align='center'><i class='fa fa-ban fa-5x'></i></div>
+			<h1 align='center'>The page you're looking for doesn\'t exist !!</h1>
 		</body>
 		<footer>
-			<div style='width:400px; margin:0 auto;'> Mon Serveur Web à moi ... &#169;Moi</div>
+			<div align='center'> Mon Serveur Web à moi ... &#169;Moi</div>
 		</footer>
 	</html>"
 
