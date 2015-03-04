@@ -2,22 +2,36 @@ net = require 'net'
 fs = require 'fs'
 path = require 'path'
 
+#GLOBAL variables
+filePath = null
+
+################################################
+
+# The web root
 www = './www'
 
-htmlError = '<!DOCTYPE HTML>
+# The 404 error page
+htmlError = "<!DOCTYPE HTML>
 	<html>
 		<head>
+		<meta charset='UTF-8'>
+			<link rel='stylesheet' href='//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css'/>
 		</head>
 		<body>
-			La page que vous recherchez n\'existe pas
+			<div style='width:300px; margin:0 auto;'><i class='fa fa-ban fa-5x'></i></div>
+			<div style='width:800px; height:600px; margin:0 auto;'><h1>The page you're looking for doesn\'t exist !!</h1></div>
 		</body>
-	</html>'
+		<footer>
+			<div style='width:400px; margin:0 auto;'> Mon Serveur Web à moi ... &#169;Moi</div>
+		</footer>
+	</html>"
 
-statutCode =
+# The Statut Codes Array
+statutCodeArray =
 	200: 'OK !!'
 	404: 'Not Found !!'
 
-
+# The Content-Types Array
 contentTypeArray =
 	html: 'text/html'
 	map: 'text/plain'
@@ -29,31 +43,34 @@ contentTypeArray =
 	mp4: 'video/mpeg'
 
 
-#reqHeader
-filePath = null
+### mes OUMPA-LOUMPA #############################################################
 
-
-### mes OUMPA-LOUMPA ###
+# Parse the request Header to extract data from it
 parseReqHeader = (reqHeader)->
 
+	# Turns the Request Header into a String
 	str = reqHeader.toString 'utf8'
+	# Extract the status line (the first line of the header)
 	statusLine = str.substr 0, str.indexOf('\r\n')
+	# Extract the method (POST/GET) from the status line
 	method = statusLine.substr 0, statusLine.indexOf(' ')
+	# Extract the protocol from the status line
 	protocol = statusLine.substr statusLine.indexOf('HTTP') #inutile
+	# Extract the file to serve (or filePath) from the status line
 	filePath = statusLine.substring statusLine.indexOf(method) + method.length + 1, statusLine.indexOf ' HTTP'
 
-
+# Process the Response from all the data available
 processResponse = (realPath, socket)->
 
-	# Getting the MIME content-type from the file extension
+	# Get the MIME content-type from the file extension
 	extension = path.extname realPath
 	extension = extension.substr 1
 	contentType = contentTypeArray[extension]
 
-	# Creating the response header
+	# Create the response header
 	respHeader = "HTTP/1.0 200 OK\r\nContent-Type: #{contentType}\r\n\r\n"
 
-	# Creating a readable fileStream from the realPath
+	# Create a readable fileStream from the realPath
 	fileStream = fs.createReadStream realPath
 
 	# Write to the socket the response header
@@ -68,9 +85,8 @@ processResponse = (realPath, socket)->
 			socket.end()
 
 		# FILESTREAM error, log it and close the socket
-		fileStream.on 'error', (err)->
-			console.error 'FILESTREAM : il y a une erreur :', err.toString 'utf8'
-			socket.end()
+		fileStream.on 'error', (err)-> #URL doesnt exist
+			socket.end htmlError
 
 	# SOCKET error, log it and close the socket
 	socket.on 'error', (err)->
@@ -78,8 +94,12 @@ processResponse = (realPath, socket)->
 		socket.end()
 
 
-### Willy Wonka ###
+### Willy Wonka ##################################################################
+
+# Create the server instance
 server = net.createServer (socket)->
+
+	# When the 'data' event is fired from the socket
 	socket.on 'data', (reqHeader)->
 
 		# Get the filePath (the file to serve) from the request Header
@@ -88,9 +108,11 @@ server = net.createServer (socket)->
 		# Turn the filePath into a pseudo 'absolute' path
 		realPath = path.join(www, if filePath is '/' then 'index.html' else filePath)
 
-		# Process the response from the realPath and the socket
+		# Create the response (header & body) and send it
 		processResponse realPath, socket
 
+
+# Launch the server and listen to port 3333
 server.listen 3333, ->
 	console.log 'server ONline\r\n'
 
