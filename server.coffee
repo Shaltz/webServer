@@ -14,6 +14,10 @@ path = require 'path'
 
 ## CONSTANTS ##
 
+# The Server name and version number
+_SERVER_NAME = 'Wwwaiter'
+_SERVER_VERSION = '0.1.0'
+
 # The port to use
 _PORT = conf['_port']
 
@@ -49,6 +53,7 @@ contentTypeArray =
 	js: 'application/javascript'
 	jpg: 'image/jpeg'
 	jpeg: 'image/jpeg'
+	gif: 'image/gif'
 	mp3: 'audio/mpeg3'
 	mp4: 'video/mpeg'
 
