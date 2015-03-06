@@ -105,7 +105,7 @@ createRespHeader = (statutCode, contentType)->
 
 
 # Parse the request Header to extract data from it
-parseReqHeader = (reqHeader)->
+parseReqHeader = (reqHeader, bubbleUp)->
 
 	# Turns the Request Header into a String
 	str = reqHeader.toString 'utf8'
@@ -113,10 +113,16 @@ parseReqHeader = (reqHeader)->
 	statusLine = str.substr 0, str.indexOf('\r\n')
 	# Extract the method (POST/GET) from the status line
 	method = statusLine.substr 0, statusLine.indexOf(' ')
-	# Extract the protocol from the status line
-	protocol = statusLine.substr statusLine.indexOf('HTTP') #inutile
 	# Extract the file to serve (or filePath) from the status line
 	filePath = statusLine.substring statusLine.indexOf(method) + method.length + 1, statusLine.indexOf ' HTTP'
+	# Extract the protocol from the status line
+	protocol = statusLine.substr statusLine.indexOf('HTTP') #inutile
+	return {
+		'statusLine': statusLine
+		'method': method
+		'filePath': filePath
+		'protocol': protocol
+		}
 
 
 # Process the Response from all the data available
@@ -171,11 +177,11 @@ server = net.createServer (socket)->
 	socket.on 'data', (reqHeader)->
 
 		# Get the filePath (the file to serve) from the request Header
-		filePath = parseReqHeader reqHeader
+		filePath = (parseReqHeader reqHeader)['filePath']
 
 		# Turn the filePath into a pseudo 'absolute' path
 		_filePath = if filePath is '/' then 'index.html' else filePath;
-		realPath = path.join(_WEBROOT, _filePath) ## simplifier cette partie (op. ternaire en dehors de l assignation) + generalisé la gestion d erreur
+		realPath = path.join(_WEBROOT, _filePath)
 
 		# Create the response (header & body) and send it
 		processResponse realPath, socket
