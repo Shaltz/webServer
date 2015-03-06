@@ -1,28 +1,48 @@
 ###############################################################################
 ##
-##	TODO :	-
+##	TODO :	- Create an object to handle the header
 ##
 ###############################################################################
+
+# config (webroot, port) from conf/conf.json
+conf = require './conf/conf.json'
 
 net = require 'net'
 fs = require 'fs'
 path = require 'path'
 
+
+## CONSTANTS ##
+
 # The port to use
-_PORT = 3333
+_PORT = conf['_port']
 
 # The web root folder
-_WWW = './www'
+_WEBROOT = conf['_webroot']
+
+# The HTML Footer Message
+_FOOTER = conf['_HTML_Footer']
+
+# Debug mode (true or false)
+_DEBUG = conf['_debug']
+
+
 
 # The Statut Codes Array
 statutCodeArray =
 	200: 'OK !!'
 	404: 'Not Found !!'
+	500: 'Internal Server Error !!'
+
+# The HTML Messages on Errors
+htmlErrorMessage =
+	404: 'The page you\'re looking for doesn\'t exist !!'
+	500: 'The server has encountered an Internal Error !!'
+
 
 # The Content-Types Array
 contentTypeArray =
 	html: 'text/html'
-	'': 'text/html'
 	txt: 'text/plain'
 	map: 'text/plain'
 	css: 'text/css'
@@ -35,9 +55,16 @@ contentTypeArray =
 
 ### OUMPA-LOUMPAS #############################################################
 
-# Create 404 error page
-createError404 = (err)->
-	htmlError = "<!DOCTYPE HTML>
+# Create an Error Page
+createErrorPage = (err, errCode)->
+	if !errCode
+		errCode = 500
+
+	displayErrorOnDebug = if _DEBUG then 'block' else 'none'
+
+
+	errorMessage = htmlErrorMessage[errCode]
+	htmlErrorPage = "<!DOCTYPE HTML>
 		<html>
 			<head>
 			<meta charset='UTF-8'>
@@ -45,18 +72,21 @@ createError404 = (err)->
 			</head>
 			<body>
 				<div align='center'><i class='fa fa-ban fa-5x'></i></div>
-				<h1 align='center'>The page you're looking for doesn\'t exist !!</h1>
-				<br>
-				<br>
-				<br>
-				<div align='center'> #{err} </div>
-				<br>
-				<br>
-				<br>
-				<br>
+					<div style='height:600px'>
+						<h1 align='center'>ERROR #{errCode}</h1>
+						<h1 align='center'>#{errorMessage}</h1>
+						<br>
+						<br>
+						<br>
+						<div style=\"display:#{displayErrorOnDebug}\" align='center'> #{err} </div>
+						<br>
+						<br>
+						<br>
+						<br>
+					</div>
 			</body>
 			<footer>
-				<div align='center'> Mon Serveur Web à moi ... &#169;Moi</div>
+				<div align='center'>#{_FOOTER}</div>
 			</footer>
 		</html>"
 
@@ -97,7 +127,11 @@ processResponse = (realPath, socket)->
 	fileStream = fs.createReadStream realPath
 
 	# If there is a readable filestream, pipe it to the socket
-	fileStream.on 'open', ->
+	fileStream.on 'open', (data)->
+
+		if _DEBUG
+			console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
+
 		respHeader = createRespHeader 200, contentType
 		socket.write respHeader, ->
 			fileStream.pipe socket
@@ -108,10 +142,19 @@ processResponse = (realPath, socket)->
 
 	# FILESTREAM error, log it and close the socket
 	fileStream.on 'error', (err)-> #URL doesnt exist
-		console.error 'FILESTREAM : il y a une erreur:', err.toString 'utf8'
-		respHeader = createRespHeader 404, contentType
+
+		if _DEBUG
+			console.error 'FILESTREAM.ERROR : il y a une erreur:', err['code']
+
+		switch err['code']
+			when 'ENOENT'
+				_errorCode = 404
+			else
+				_errorCode = 500
+
+		respHeader = createRespHeader _errorCode, 'text/html'
 		socket.write respHeader, ->
-			socket.end createError404(err)
+			socket.end createErrorPage(err, _errorCode)
 
 
 ### WILLY WONKA ###############################################################
@@ -126,17 +169,25 @@ server = net.createServer (socket)->
 		filePath = parseReqHeader reqHeader
 
 		# Turn the filePath into a pseudo 'absolute' path
-		realPath = path.join(_WWW, if filePath is '/' then 'index.html' else filePath)
+		_filePath = if filePath is '/' then 'index.html' else filePath;
+		realPath = path.join(_WEBROOT, _filePath) ## simplifier cette partie (op. ternaire en dehors de l assignation) + generalisé la gestion d erreur
 
 		# Create the response (header & body) and send it
 		processResponse realPath, socket
 
-	# SOCKET error, log it and close the socket
+	# SOCKET error, log it and close the socket (socket closed automaticaly when 'error' event is fired)
 	socket.on 'error', (err)->
-		console.error 'SOCKET : il y a une erreur:', err.toString 'utf8'
-		socket.end()
+
+		if _DEBUG
+			console.error 'SOCKET.ERROR : il y a une erreur:', err.toString 'utf8'
+
 
 # Launch the server and listen to port 3333
 server.listen _PORT, ->
 	console.log "\r\nWebServer ONline on port: #{_PORT}\r\n"
+
+	if _DEBUG
+		console.log 'WebRoot :', _WEBROOT
+		console.log 'Footer Message :', _FOOTER
+		console.log 'Debug Mode:', _DEBUG
 
