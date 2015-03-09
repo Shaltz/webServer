@@ -5,9 +5,9 @@
 ###############################################################################
 
 # config (webroot, port) from
-_CONF_PATH = './conf/conf.json'
-_CONF = require _CONF_PATH
+_conf_path = './conf/conf.json'
 
+conf = require _conf_path
 net = require 'net'
 fs = require 'fs'
 path = require 'path'
@@ -20,16 +20,16 @@ _SERVER_NAME = 'Wwwaiter'
 _SERVER_VERSION = '0.1.0'
 
 # The port to use
-_PORT = _CONF['_port']
+_PORT = conf['_port']
 
 # The web root folder
-_WEBROOT = _CONF['_webroot']
+_WEBROOT = conf['_webroot']
 
 # The HTML Footer Message
-_FOOTER = _CONF['_HTML_Footer']
+_FOOTER = conf['_HTML_Footer']
 
 # Debug mode (true or false)
-_DEBUG = _CONF['_debug']
+_DEBUG = conf['_debug']
 
 
 
@@ -202,7 +202,7 @@ server.listen _PORT, ->
 
 	if _DEBUG
 		console.log 'Debug Mode:', _DEBUG
-		console.log 'Configuration file:', _CONF_PATH, '\r\n'
+		console.log 'Configuration file:', _conf_path, '\r\n'
 		console.log 'WebRoot :', _WEBROOT
 		console.log 'HTML Footer Message :', _FOOTER
 
