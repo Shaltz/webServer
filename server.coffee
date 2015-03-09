@@ -16,7 +16,8 @@ path = require 'path'
 ## CONSTANTS ##
 
 # The Server name and version number
-_SERVER_NAME = 'Wwwaiter'
+_SERVER_NAME = 'WwWaiter'
+_SERVER_PROTOCOL = 'HTTP/1.0'
 _SERVER_VERSION = '0.1.0'
 
 # The port to use
@@ -34,7 +35,7 @@ _DEBUG = conf['_debug']
 
 
 # The Statut Codes Array
-statutCodeArray =
+statusCodeArray =
 	200: 'OK !!'
 	404: 'Not Found !!'
 	500: 'Internal Server Error !!'
@@ -97,12 +98,82 @@ createErrorPage = (err, errCode)->
 		</html>"
 
 # Create the response Header
-createRespHeader = (statutCode, contentType)->
+createRespHeader = (statusCode, contentType)->
 
 	# Get the Statut Message from the Statut Code
-	statutMessage = statutCodeArray[statutCode]
+	statusMessage = statusCodeArray[statusCode]
 	# Create the response header
-	respHeader = "HTTP/1.0 #{statutCode} #{statutMessage}\r\nContent-Type: #{contentType}\r\n\r\n"
+	respHeader = "HTTP/1.0 #{statusCode} #{statusMessage}\r\nContent-Type: #{contentType}\r\n\r\n"
+
+buildRespHeader = (reqHeader, statusCode, filePath, callback)->
+
+	if statusCode && filePath
+		fs.stat filePath, (err, stats)->
+		# Get the Statut Message from the Statut Code
+			statusMessage = statusCodeArray[statusCode]
+
+		# Get the MIME content-type from the file extension
+			realPath = path.normalize(filePath) # to take care of // or /.. or /.
+			extension = path.extname realPath
+			extension = extension.substr 1
+			contentType = contentTypeArray[extension]
+
+		#File Infos
+			fileSize = stats.size
+			filelastModified = stats.mtime
+
+		# Request Header Parser
+			# Turns the Request Header into a String
+			str = reqHeader.toString 'utf8'
+			# Extract the status line (the first line of the header)
+			statusLine = str.substr 0, str.indexOf('\r\n')
+			# Extract the method (POST/GET) from the status line
+			method = statusLine.substr 0, statusLine.indexOf(' ')
+			# Extract the file to serve (or filePath) from the status line
+			filePath = statusLine.substring statusLine.indexOf(method) + method.length + 1, statusLine.indexOf ' HTTP'
+			# Extract the protocol from the status line
+			protocol = statusLine.substr statusLine.indexOf('HTTP')
+
+			# Verify that the protocol version is handled by the server, if not, changes the protocol version to the server's
+			if protocol isnt _SERVER_PROTOCOL
+				if protocol is 'HTTP/0.9'
+					protocol = 'HTTP/0.9'
+				else
+					protocol = _SERVER_PROTOCOL
+
+
+			if callback
+				callback {
+					statusLine:{
+						protocol: protocol
+						statusCode: statusCode
+						statusMessage: statusMessage
+					}
+					date: new Date()
+					contentType: contentType
+					contentLength: fileSize
+					lastModified: filelastModified
+					server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
+
+					toString : ->
+						"#{@statusLine.protocol} #{@statusLine.statusCode} #{@statusLine.statusMessage}\r\nDate: #{@date}\r\nContent-Type: #{@contentType}\r\nContent-Length: #{@contentLength}\r\nLast-Modified: #{@lastModified}\r\nServer: #{@server}\r\n\r\n"
+				}
+	else
+		throw new Error('Missing parameters for the buildHeader Function')
+
+
+
+
+
+# getFileInfos = (filePath, callback)->
+# 	console.log 'filepath in getFileInfos:', filePath
+# 	fs.stat filePath, (err, stats)->
+# 		fileSize = stats['size']
+# 		filelastModified = stats['mtime']
+# 		callback {
+# 			'size': fileSize
+# 			'mtime': filelastModified
+# 			}
 
 
 # Parse the request Header to extract data from it
@@ -119,34 +190,33 @@ parseReqHeader = (reqHeader)->
 	# Extract the protocol from the status line
 	protocol = statusLine.substr statusLine.indexOf('HTTP') #inutile
 	return {
-		'statusLine': statusLine
-		'method': method
-		'filePath': filePath
-		'protocol': protocol
-		}
+		statusLine: statusLine
+		method: method
+		filePath: filePath
+		protocol: protocol
+	}
 
 
 # Process the Response from all the data available
-processResponse = (realPath, socket)->
+processResponse = (reqHeader, realPath, socket)->
 
-	# Get the MIME content-type from the file extension
-	realPath = path.normalize(realPath) # to take care of // or /.. or /.
-	extension = path.extname realPath
-	extension = extension.substr 1
-	contentType = contentTypeArray[extension]
 
 	# Create a readable fileStream from the realPath
 	fileStream = fs.createReadStream realPath
 
 	# If there is a readable filestream, pipe it to the socket
-	fileStream.on 'open', (data)->
+	fileStream.on 'open',(data)->
 
 		if _DEBUG
 			console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
 
-		respHeader = createRespHeader 200, contentType
-		socket.write respHeader, ->
-			fileStream.pipe socket
+		# respHeader = createRespHeader 200, contentType
+		# socket.write respHeader, ->
+		# 	fileStream.pipe socket
+
+		buildRespHeader reqHeader, 200, realPath, (respHeader)->
+			socket.write respHeader.toString(), ->
+				fileStream.pipe socket
 
 	# When there is no more data to read from the fileStream, close the socket
 	fileStream.on 'end', ->
@@ -185,7 +255,7 @@ server = net.createServer (socket)->
 		realPath = path.join(_WEBROOT, _filePath)
 
 		# Create the response (header & body) and send it
-		processResponse realPath, socket
+		processResponse reqHeader, realPath, socket
 
 	# SOCKET error, log it and close the socket (socket closed automaticaly when 'error' event is fired)
 	socket.on 'error', (err)->
@@ -196,13 +266,18 @@ server = net.createServer (socket)->
 
 # Launch the server and listen to port 3333
 server.listen _PORT, ->
-	console.log '\r\n###############################################'
-	console.log "\r\n#{_SERVER_NAME} v#{_SERVER_VERSION} WebServer ONline on port: #{_PORT}\r\n"
-	console.log '###############################################\r\n'
+	console.log '\r\n'
+	console.log '####################################################'
+	console.log '\r\n'
+	console.log "    #{_SERVER_NAME} v#{_SERVER_VERSION} WebServer ONline on port: #{_PORT}"
+	console.log '\r\n'
+	console.log '####################################################'
+	console.log '\r\n'
 
 	if _DEBUG
 		console.log 'Debug Mode:', _DEBUG
 		console.log 'Configuration file:', _conf_path, '\r\n'
 		console.log 'WebRoot :', _WEBROOT
 		console.log 'HTML Footer Message :', _FOOTER
+		console.log '\r\n'
 
