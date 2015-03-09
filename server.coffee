@@ -4,8 +4,9 @@
 ##
 ###############################################################################
 
-# config (webroot, port) from conf/conf.json
-conf = require './conf/conf.json'
+# config (webroot, port) from
+_CONF_PATH = './conf/conf.json'
+_CONF = require _CONF_PATH
 
 net = require 'net'
 fs = require 'fs'
@@ -19,16 +20,16 @@ _SERVER_NAME = 'Wwwaiter'
 _SERVER_VERSION = '0.1.0'
 
 # The port to use
-_PORT = conf['_port']
+_PORT = _CONF['_port']
 
 # The web root folder
-_WEBROOT = conf['_webroot']
+_WEBROOT = _CONF['_webroot']
 
 # The HTML Footer Message
-_FOOTER = conf['_HTML_Footer']
+_FOOTER = _CONF['_HTML_Footer']
 
 # Debug mode (true or false)
-_DEBUG = conf['_debug']
+_DEBUG = _CONF['_debug']
 
 
 
@@ -105,7 +106,7 @@ createRespHeader = (statutCode, contentType)->
 
 
 # Parse the request Header to extract data from it
-parseReqHeader = (reqHeader, bubbleUp)->
+parseReqHeader = (reqHeader)->
 
 	# Turns the Request Header into a String
 	str = reqHeader.toString 'utf8'
@@ -195,10 +196,13 @@ server = net.createServer (socket)->
 
 # Launch the server and listen to port 3333
 server.listen _PORT, ->
-	console.log "\r\nWebServer ONline on port: #{_PORT}\r\n"
+	console.log '\r\n###############################################'
+	console.log "\r\n#{_SERVER_NAME} v#{_SERVER_VERSION} WebServer ONline on port: #{_PORT}\r\n"
+	console.log '###############################################\r\n'
 
 	if _DEBUG
-		console.log 'WebRoot :', _WEBROOT
-		console.log 'Footer Message :', _FOOTER
 		console.log 'Debug Mode:', _DEBUG
+		console.log 'Configuration file:', _CONF_PATH, '\r\n'
+		console.log 'WebRoot :', _WEBROOT
+		console.log 'HTML Footer Message :', _FOOTER
 
