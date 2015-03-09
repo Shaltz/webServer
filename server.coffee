@@ -26,6 +26,9 @@ _PORT = conf['_port']
 # The web root folder
 _WEBROOT = conf['_webroot']
 
+# The default index file
+_INDEX = conf['_defaultIndex']
+
 # The HTML Footer Message
 _FOOTER = conf['_HTML_Footer']
 
@@ -64,22 +67,22 @@ contentTypeArray =
 
 # Create an Error Page
 createErrorPage = (err, errCode)->
+
 	if !errCode
 		errCode = 500
 
 	displayErrorOnDebug = if _DEBUG then 'block' else 'none'
-
 
 	errorMessage = htmlErrorMessage[errCode]
 	htmlErrorPage = "<!DOCTYPE HTML>
 		<html>
 			<head>
 			<meta charset='UTF-8'>
-				<link rel='stylesheet' href='//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css'/>
+			<script>function getScreenHeight(){height = screen.height; window.alert(height);return height}</script>
 			</head>
 			<body>
-				<div align='center'><i class='fa fa-ban fa-5x'></i></div>
-					<div style='height:600px'>
+				<div align='center'><img src='./libServer/ban.png'></i></div>
+					<div style='height:450px'>
 						<h1 align='center'>ERROR #{errCode}</h1>
 						<h1 align='center'>#{errorMessage}</h1>
 						<br>
@@ -93,46 +96,43 @@ createErrorPage = (err, errCode)->
 					</div>
 			</body>
 			<footer>
-				<div align='center'>#{_FOOTER}</div>
+				<p align='center'>#{_FOOTER}</p>
 			</footer>
 		</html>"
 
-# Create the response Header
-createRespHeader = (statusCode, contentType)->
+# Get the MIME content-type from the file extension
+getMIMEfromPath = (filePath)->
+		realPath = path.normalize(filePath) # to take care of // or /.. or /.
+		extension = path.extname realPath
+		extension = extension.substr 1
+		contentType = contentTypeArray[extension]
 
-	# Get the Statut Message from the Statut Code
-	statusMessage = statusCodeArray[statusCode]
-	# Create the response header
-	respHeader = "HTTP/1.0 #{statusCode} #{statusMessage}\r\nContent-Type: #{contentType}\r\n\r\n"
+		if contentType is undefined
+			contentType = 'text/html'
 
+		contentType
+
+# Build the response header from all the data available
 buildRespHeader = (reqHeader, statusCode, filePath, callback)->
 
 	if statusCode && filePath
 		fs.stat filePath, (err, stats)->
+		#File Infos
+			if err
+				fileSize = Buffer.byteLength createErrorPage(), 'utf8'
+				filelastModified = new Date()
+			else
+				fileSize = stats.size
+				filelastModified = stats.mtime
+
 		# Get the Statut Message from the Statut Code
 			statusMessage = statusCodeArray[statusCode]
 
 		# Get the MIME content-type from the file extension
-			realPath = path.normalize(filePath) # to take care of // or /.. or /.
-			extension = path.extname realPath
-			extension = extension.substr 1
-			contentType = contentTypeArray[extension]
-
-		#File Infos
-			fileSize = stats.size
-			filelastModified = stats.mtime
+			contentType = getMIMEfromPath filePath
 
 		# Request Header Parser
-			# Turns the Request Header into a String
-			str = reqHeader.toString 'utf8'
-			# Extract the status line (the first line of the header)
-			statusLine = str.substr 0, str.indexOf('\r\n')
-			# Extract the method (POST/GET) from the status line
-			method = statusLine.substr 0, statusLine.indexOf(' ')
-			# Extract the file to serve (or filePath) from the status line
-			filePath = statusLine.substring statusLine.indexOf(method) + method.length + 1, statusLine.indexOf ' HTTP'
-			# Extract the protocol from the status line
-			protocol = statusLine.substr statusLine.indexOf('HTTP')
+			protocol = (parseReqHeader reqHeader)['protocol']
 
 			# Verify that the protocol version is handled by the server, if not, changes the protocol version to the server's
 			if protocol isnt _SERVER_PROTOCOL
@@ -140,7 +140,6 @@ buildRespHeader = (reqHeader, statusCode, filePath, callback)->
 					protocol = 'HTTP/0.9'
 				else
 					protocol = _SERVER_PROTOCOL
-
 
 			if callback
 				callback {
@@ -161,21 +160,6 @@ buildRespHeader = (reqHeader, statusCode, filePath, callback)->
 	else
 		throw new Error('Missing parameters for the buildHeader Function')
 
-
-
-
-
-# getFileInfos = (filePath, callback)->
-# 	console.log 'filepath in getFileInfos:', filePath
-# 	fs.stat filePath, (err, stats)->
-# 		fileSize = stats['size']
-# 		filelastModified = stats['mtime']
-# 		callback {
-# 			'size': fileSize
-# 			'mtime': filelastModified
-# 			}
-
-
 # Parse the request Header to extract data from it
 parseReqHeader = (reqHeader)->
 
@@ -188,7 +172,8 @@ parseReqHeader = (reqHeader)->
 	# Extract the file to serve (or filePath) from the status line
 	filePath = statusLine.substring statusLine.indexOf(method) + method.length + 1, statusLine.indexOf ' HTTP'
 	# Extract the protocol from the status line
-	protocol = statusLine.substr statusLine.indexOf('HTTP') #inutile
+	protocol = statusLine.substr statusLine.indexOf('HTTP')
+
 	return {
 		statusLine: statusLine
 		method: method
@@ -200,7 +185,6 @@ parseReqHeader = (reqHeader)->
 # Process the Response from all the data available
 processResponse = (reqHeader, realPath, socket)->
 
-
 	# Create a readable fileStream from the realPath
 	fileStream = fs.createReadStream realPath
 
@@ -210,10 +194,7 @@ processResponse = (reqHeader, realPath, socket)->
 		if _DEBUG
 			console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
 
-		# respHeader = createRespHeader 200, contentType
-		# socket.write respHeader, ->
-		# 	fileStream.pipe socket
-
+		# Call buildRespHeader function to create the header and send the file
 		buildRespHeader reqHeader, 200, realPath, (respHeader)->
 			socket.write respHeader.toString(), ->
 				fileStream.pipe socket
@@ -234,10 +215,10 @@ processResponse = (reqHeader, realPath, socket)->
 			else
 				_errorCode = 500
 
-		respHeader = createRespHeader _errorCode, 'text/html'
-		socket.write respHeader, ->
-			socket.end createErrorPage(err, _errorCode)
-
+		# Call buildRespHeader function to create the header and the error  Page
+		buildRespHeader reqHeader, _errorCode, realPath, (respHeader)->
+			socket.write respHeader.toString(), ->
+				socket.end createErrorPage(err, _errorCode)
 
 ### WILLY WONKA ###############################################################
 
@@ -251,8 +232,13 @@ server = net.createServer (socket)->
 		filePath = (parseReqHeader reqHeader)['filePath']
 
 		# Turn the filePath into a pseudo 'absolute' path
-		_filePath = if filePath is '/' then 'index.html' else filePath;
-		realPath = path.join(_WEBROOT, _filePath)
+		_filePath = if filePath is '/' then 'index.html' else filePath
+
+		# Verify that the file is either in the webroot or in libServer
+		_testServersFiles = new RegExp /^\/libServer\//i
+		_root = if _testServersFiles.test(filePath) then '.' else _WEBROOT
+
+		realPath = path.join(_root, _filePath)
 
 		# Create the response (header & body) and send it
 		processResponse reqHeader, realPath, socket
@@ -278,6 +264,7 @@ server.listen _PORT, ->
 		console.log 'Debug Mode:', _DEBUG
 		console.log 'Configuration file:', _conf_path, '\r\n'
 		console.log 'WebRoot :', _WEBROOT
+		console.log 'Default Index file :', _INDEX
 		console.log 'HTML Footer Message :', _FOOTER
 		console.log '\r\n'
 
