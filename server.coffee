@@ -100,67 +100,31 @@ createErrorPage = (err, errCode, callback)->
 
 # Get the MIME content-type from the file extension
 getMIMEfromPath = (filePath)->
-		realPath = path.normalize(filePath) # to take care of // or /.. or /.
-		extension = path.extname realPath
-		extension = extension.substr 1
-		contentType = contentTypeArray[extension]
 
-		if contentType is undefined
-			contentType = 'text/html'
+	realPath = path.normalize(filePath) # to take care of // or /.. or /.
+	extension = path.extname realPath
+	extension = extension.substr 1
+	contentType = contentTypeArray[extension]
 
-		contentType
+	if contentType is undefined
+		contentType = 'text/html'
+
+	contentType
 
 # Build the response header from all the data available
-buildRespHeader = (err, errCode, reqHeader, statusCode, filePath, callback)->
+buildRespHeader = (err, reqHeader, statusCode, filePath, callback)->
 
-	if err is null
-		fs.stat filePath, (err, stats)->
-		#File Infos
-			if err
-				console.error 'Il y a une erreur ICI >>>>>>>'
-			else
-				fileSize = stats.size
-				filelastModified = stats.mtime
-
-		# Get the Statut Message from the Statut Code
-			statusMessage = statusCodeArray[statusCode]
-
-		# Get the MIME content-type from the file extension
-			contentType = getMIMEfromPath filePath
-
-		# Request Header Parser
-			protocol = (parseReqHeader reqHeader)['protocol']
-
-			# Verify that the protocol version is handled by the server, if not, changes the protocol version to the server's
-			if protocol isnt _SERVER_PROTOCOL
-				if protocol is 'HTTP/0.9'
-					protocol = 'HTTP/0.9'
-				else
-					protocol = _SERVER_PROTOCOL
-
-			if callback
-				callback {
-					statusLine:{
-						protocol: protocol
-						statusCode: statusCode
-						statusMessage: statusMessage
-						}
-					date: new Date
-					contentType: contentType
-					contentLength: fileSize
-					lastModified: filelastModified
-					server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
-
-					toString : ->
-						"#{@statusLine.protocol} #{@statusLine.statusCode} #{@statusLine.statusMessage}\r\nDate: #{@date}\r\nContent-Type: #{@contentType}\r\nContent-Length: #{@contentLength}\r\nLast-Modified: #{@lastModified}\r\nServer: #{@server}\r\n\r\n"
-					}
-	else
+	fs.stat filePath, (err, stats)->
+		_date = new Date
 	#File Infos
-		fileSize = Buffer.byteLength createErrorPage(err, errCode), 'utf8'
-		filelastModified = new Date
-
-	# Get the MIME content-type from the file extension
-		contentType = 'text/html'
+		if err
+			fileSize = Buffer.byteLength createErrorPage(err, statusCode), 'utf8'
+			filelastModified = _date
+			contentType = 'text/html'
+		else
+			fileSize = stats.size
+			filelastModified = stats.mtime
+			contentType = getMIMEfromPath filePath
 
 	# Get the Statut Message from the Statut Code
 		statusMessage = statusCodeArray[statusCode]
@@ -182,7 +146,7 @@ buildRespHeader = (err, errCode, reqHeader, statusCode, filePath, callback)->
 					statusCode: statusCode
 					statusMessage: statusMessage
 					}
-				date: new Date
+				date: _date
 				contentType: contentType
 				contentLength: fileSize
 				lastModified: filelastModified
@@ -214,10 +178,10 @@ parseReqHeader = (reqHeader)->
 	protocol: protocol
 
 # Process the Response from all the data available
-processResponse = (reqHeader, realPath, socket)->
+processResponse = (reqHeader, requestedPath, socket)->
 
-	# Create a readable fileStream from the realPath
-	fileStream = fs.createReadStream realPath
+	# Create a readable fileStream from the requestedPath
+	fileStream = fs.createReadStream requestedPath
 
 	# If there is a readable filestream, pipe it to the socket
 	fileStream.on 'open',(data)->
@@ -226,7 +190,7 @@ processResponse = (reqHeader, realPath, socket)->
 			console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
 
 		# Call buildRespHeader function to create the header and send the file
-		buildRespHeader null, null, reqHeader, 200, realPath, (respHeader)->
+		buildRespHeader null, reqHeader, 200, requestedPath, (respHeader)->
 			socket.write respHeader.toString(), ->
 				fileStream.pipe socket
 
@@ -242,19 +206,14 @@ processResponse = (reqHeader, realPath, socket)->
 
 		switch err['code']
 			when 'ENOENT'
-				_errorCode = 404
+				_statuCode = 404
 			else
-				_errorCode = 500
+				_statuCode = 500
 
 		# Call buildRespHeader function to create the header and the error  Page
-		buildRespHeader err, _errorCode, reqHeader, _errorCode, null, (respHeader)->
+		buildRespHeader err, reqHeader, _statuCode, requestedPath, (respHeader)->
 			socket.write respHeader.toString(), ->
-				socket.end createErrorPage err, _errorCode
-
-
-
-
-
+				socket.end createErrorPage err, _statuCode
 
 
 
