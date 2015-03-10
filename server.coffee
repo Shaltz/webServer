@@ -40,11 +40,13 @@ _DEBUG = conf['debug']
 statusCodeArray =
 	200: 'OK !!'
 	404: 'Not Found !!'
+	414: 'Request URI too long !!'
 	500: 'Internal Server Error !!'
 
 # The HTML Messages on Errors
 htmlErrorMessage =
 	404: 'The page you\'re looking for doesn\'t exist !!'
+	414: 'The Requested URI is too long !!'
 	500: 'The server has encountered an Internal Error !!'
 
 
@@ -140,7 +142,7 @@ buildRespHeader = (err, reqHeader, statusCode, filePath, callback)->
 				protocol = _SERVER_PROTOCOL
 
 		if callback
-			callback {
+			respHeader = {
 				statusLine:{
 					protocol: protocol
 					statusCode: statusCode
@@ -155,6 +157,7 @@ buildRespHeader = (err, reqHeader, statusCode, filePath, callback)->
 				toString : ->
 					"#{@statusLine.protocol} #{@statusLine.statusCode} #{@statusLine.statusMessage}\r\nDate: #{@date}\r\nContent-Type: #{@contentType}\r\nContent-Length: #{@contentLength}\r\nLast-Modified: #{@lastModified}\r\nServer: #{@server}\r\n\r\n"
 				}
+			callback respHeader
 
 
 
@@ -207,6 +210,8 @@ processResponse = (reqHeader, requestedPath, socket)->
 		switch err['code']
 			when 'ENOENT'
 				_statuCode = 404
+			when 'ENAMETOOLONG'
+				_statuCode = 414
 			else
 				_statuCode = 500
 
