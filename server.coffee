@@ -21,19 +21,18 @@ _SERVER_PROTOCOL = 'HTTP/1.0'
 _SERVER_VERSION = '0.1.0'
 
 # The port to use
-_PORT = conf['_port']
+_PORT = conf['port']
 
 # The web root folder
-_WEBROOT = conf['_webroot']
+_WEBROOT = conf['webroot']
 
 # The default index file
 _INDEX = conf['_defaultIndex']
-
 # The HTML Footer Message
-_FOOTER = conf['_HTML_Footer']
+_FOOTER = conf['HTML_Footer_onError']
 
 # Debug mode (true or false)
-_DEBUG = conf['_debug']
+_DEBUG = conf['debug']
 
 
 
@@ -115,50 +114,47 @@ getMIMEfromPath = (filePath)->
 # Build the response header from all the data available
 buildRespHeader = (reqHeader, statusCode, filePath, callback)->
 
-	if statusCode && filePath
-		fs.stat filePath, (err, stats)->
-		#File Infos
-			if err
-				fileSize = Buffer.byteLength createErrorPage(), 'utf8'
-				filelastModified = new Date()
+	fs.stat filePath, (err, stats)->
+	#File Infos
+		if err
+			fileSize = Buffer.byteLength createErrorPage(), 'utf8'
+			filelastModified = new Date
+		else
+			fileSize = stats.size
+			filelastModified = stats.mtime
+
+	# Get the Statut Message from the Statut Code
+		statusMessage = statusCodeArray[statusCode]
+
+	# Get the MIME content-type from the file extension
+		contentType = getMIMEfromPath filePath
+
+	# Request Header Parser
+		protocol = (parseReqHeader reqHeader)['protocol']
+
+		# Verify that the protocol version is handled by the server, if not, changes the protocol version to the server's
+		if protocol isnt _SERVER_PROTOCOL
+			if protocol is 'HTTP/0.9'
+				protocol = 'HTTP/0.9'
 			else
-				fileSize = stats.size
-				filelastModified = stats.mtime
+				protocol = _SERVER_PROTOCOL
 
-		# Get the Statut Message from the Statut Code
-			statusMessage = statusCodeArray[statusCode]
-
-		# Get the MIME content-type from the file extension
-			contentType = getMIMEfromPath filePath
-
-		# Request Header Parser
-			protocol = (parseReqHeader reqHeader)['protocol']
-
-			# Verify that the protocol version is handled by the server, if not, changes the protocol version to the server's
-			if protocol isnt _SERVER_PROTOCOL
-				if protocol is 'HTTP/0.9'
-					protocol = 'HTTP/0.9'
-				else
-					protocol = _SERVER_PROTOCOL
-
-			if callback
-				callback {
-					statusLine:{
-						protocol: protocol
-						statusCode: statusCode
-						statusMessage: statusMessage
+		if callback
+			callback {
+				statusLine:{
+					protocol: protocol
+					statusCode: statusCode
+					statusMessage: statusMessage
 					}
-					date: new Date()
-					contentType: contentType
-					contentLength: fileSize
-					lastModified: filelastModified
-					server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
+				date: new Date
+				contentType: contentType
+				contentLength: fileSize
+				lastModified: filelastModified
+				server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
 
-					toString : ->
-						"#{@statusLine.protocol} #{@statusLine.statusCode} #{@statusLine.statusMessage}\r\nDate: #{@date}\r\nContent-Type: #{@contentType}\r\nContent-Length: #{@contentLength}\r\nLast-Modified: #{@lastModified}\r\nServer: #{@server}\r\n\r\n"
+				toString : ->
+					"#{@statusLine.protocol} #{@statusLine.statusCode} #{@statusLine.statusMessage}\r\nDate: #{@date}\r\nContent-Type: #{@contentType}\r\nContent-Length: #{@contentLength}\r\nLast-Modified: #{@lastModified}\r\nServer: #{@server}\r\n\r\n"
 				}
-	else
-		throw new Error('Missing parameters for the buildHeader Function')
 
 # Parse the request Header to extract data from it
 parseReqHeader = (reqHeader)->
@@ -174,13 +170,10 @@ parseReqHeader = (reqHeader)->
 	# Extract the protocol from the status line
 	protocol = statusLine.substr statusLine.indexOf('HTTP')
 
-	return {
-		statusLine: statusLine
-		method: method
-		filePath: filePath
-		protocol: protocol
-	}
-
+	statusLine: statusLine
+	method: method
+	filePath: filePath
+	protocol: protocol
 
 # Process the Response from all the data available
 processResponse = (reqHeader, realPath, socket)->
