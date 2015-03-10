@@ -11,7 +11,7 @@ conf = require _conf_path
 net = require 'net'
 fs = require 'fs'
 path = require 'path'
-
+querystring = require 'querystring'
 
 ## CONSTANTS ##
 
@@ -27,7 +27,7 @@ _PORT = conf['port']
 _WEBROOT = conf['webroot']
 
 # The default index file
-_INDEX = conf['_defaultIndex']
+_INDEX = conf['defaultIndex']
 # The HTML Footer Message
 _FOOTER = conf['HTML_Footer_onError']
 
@@ -39,14 +39,16 @@ _DEBUG = conf['debug']
 # The Statut Codes Array
 statusCodeArray =
 	200: 'OK !!'
+	403: 'Forbidden !!'
 	404: 'Not Found !!'
-	414: 'Request URI too long !!'
+	414: 'Requested URI too long !!'
 	500: 'Internal Server Error !!'
 
 # The HTML Messages on Errors
 htmlErrorMessage =
+	403: 'The request couldn\'t be satisfied, forbidden element in the request URI !!'
 	404: 'The page you\'re looking for doesn\'t exist !!'
-	414: 'The Requested URI is too long !!'
+	414: 'The requested URI is too long !!'
 	500: 'The server has encountered an Internal Error !!'
 
 
@@ -67,7 +69,7 @@ contentTypeArray =
 ### OUMPA-LOUMPAS #############################################################
 
 # Create an Error Page
-createErrorPage = (err, errCode, callback)->
+createErrorPage = (err, errCode)->
 	if !errCode
 		errCode = 500
 
@@ -103,26 +105,18 @@ createErrorPage = (err, errCode, callback)->
 # Get the MIME content-type from the file extension
 getMIMEfromPath = (filePath)->
 
-	realPath = path.normalize(filePath) # to take care of // or /.. or /.
-	extension = path.extname realPath
+	# realPath = path.normalize(filePath) # to take care of // or /.. or /.
+	extension = path.extname filePath
 	extension = extension.substr 1
 	contentType = contentTypeArray[extension]
-
-	if contentType is undefined
-		contentType = 'text/html'
-
-	contentType
 
 # Build the response header from all the data available
 buildRespHeader = (err, reqHeader, statusCode, filePath, callback)->
 
 	fs.stat filePath, (err, stats)->
-		_date = new Date
 	#File Infos
 		if err
 			fileSize = Buffer.byteLength createErrorPage(err, statusCode), 'utf8'
-			filelastModified = _date
-			contentType = 'text/html'
 		else
 			fileSize = stats.size
 			filelastModified = stats.mtime
@@ -141,23 +135,36 @@ buildRespHeader = (err, reqHeader, statusCode, filePath, callback)->
 			else
 				protocol = _SERVER_PROTOCOL
 
-		if callback
-			respHeader = {
-				statusLine:{
-					protocol: protocol
-					statusCode: statusCode
-					statusMessage: statusMessage
-					}
-				date: _date
-				contentType: contentType
-				contentLength: fileSize
-				lastModified: filelastModified
-				server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
+			rn = '\r\n'
 
+			# Object containing all the header informations
+			respHeader =
+				header : "#{protocol} #{statusCode} #{statusMessage}" + rn
+				fields:
+					date: new Date
+					contentType: contentType ? 'text/html'
+					contentLength: fileSize ? 0
+					lastModified: filelastModified ? new Date
+					server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
+
+				# Append all the fields and their values to the status line to create the header
 				toString : ->
-					"#{@statusLine.protocol} #{@statusLine.statusCode} #{@statusLine.statusMessage}\r\nDate: #{@date}\r\nContent-Type: #{@contentType}\r\nContent-Length: #{@contentLength}\r\nLast-Modified: #{@lastModified}\r\nServer: #{@server}\r\n\r\n"
-				}
+					for key, value of respHeader.fields
+						@header += key + ": " + value + rn
+					@header + rn
+
+		if callback
 			callback respHeader
+
+
+protectPath = (filePath, callback) ->
+	setTimeout ->
+		console.log 'filePath :', filePath
+		regex = /(\.\.)/g
+		response = regex.test filePath
+		console.log 'protected filePath :', response
+		callback response
+		, 0
 
 
 
@@ -190,7 +197,7 @@ processResponse = (reqHeader, requestedPath, socket)->
 	fileStream.on 'open',(data)->
 
 		if _DEBUG
-			console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
+			console.log 'FILESTREAM.OPEN : Un fichier à été servi !!'
 
 		# Call buildRespHeader function to create the header and send the file
 		buildRespHeader null, reqHeader, 200, requestedPath, (respHeader)->
@@ -205,7 +212,7 @@ processResponse = (reqHeader, requestedPath, socket)->
 	fileStream.on 'error', (err)-> #URL doesnt exist
 
 		if _DEBUG
-			console.error 'FILESTREAM.ERROR : il y a une erreur:', err['code']
+			console.error 'FILESTREAM.ERROR : il y a une erreur:', err['code'], ' !!'
 
 		switch err['code']
 			when 'ENOENT'
@@ -233,17 +240,29 @@ server = net.createServer (socket)->
 		# Get the filePath (the file to serve) from the request Header
 		filePath = (parseReqHeader reqHeader)['filePath']
 
-		# Turn the filePath into a pseudo 'absolute' path
-		_filePath = if filePath is '/' then 'index.html' else filePath
+		# Check if the filePazth contains "..", if it does, throw the forbidden error page
+		protectPath filePath, (response)->
 
-		# Verify that the file is either in the webroot or in libServer
-		_testServersFiles = /^\/libServer\//i
-		_root = if _testServersFiles.test(filePath) then '.' else _WEBROOT
+			if response is true
+				# Call buildRespHeader function to create the header and the error  Page
+				buildRespHeader null, reqHeader, 403, filePath, (respHeader)->
+					socket.write respHeader.toString(), ->
+						err = htmlErrorMessage['403']
+						socket.end createErrorPage err, 403
 
-		realPath = path.join(_root, _filePath)
+			else
 
-		# Create the response (header & body) and send it
-		processResponse reqHeader, realPath, socket
+				# Turn the filePath into a pseudo 'absolute' path
+				_filePath = if filePath is '/' then 'index.html' else filePath
+
+				# Verify that the file is either in the webroot or in libServer
+				_testServersFiles = /^\/libServer\//i
+				_root = if _testServersFiles.test(filePath) then '.' else _WEBROOT
+
+				requestedPath = path.join(_root, _filePath)
+
+				# Create the response (header & body) and send it
+				processResponse reqHeader, requestedPath, socket
 
 	# SOCKET error, log it and close the socket (socket closed automaticaly when 'error' event is fired)
 	socket.on 'error', (err)->
