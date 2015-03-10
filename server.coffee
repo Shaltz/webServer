@@ -65,8 +65,7 @@ contentTypeArray =
 ### OUMPA-LOUMPAS #############################################################
 
 # Create an Error Page
-createErrorPage = (err, errCode)->
-
+createErrorPage = (err, errCode, callback)->
 	if !errCode
 		errCode = 500
 
@@ -112,22 +111,59 @@ getMIMEfromPath = (filePath)->
 		contentType
 
 # Build the response header from all the data available
-buildRespHeader = (reqHeader, statusCode, filePath, callback)->
+buildRespHeader = (err, errCode, reqHeader, statusCode, filePath, callback)->
 
-	fs.stat filePath, (err, stats)->
+	if err is null
+		fs.stat filePath, (err, stats)->
+		#File Infos
+			if err
+				console.error 'Il y a une erreur ICI >>>>>>>'
+			else
+				fileSize = stats.size
+				filelastModified = stats.mtime
+
+		# Get the Statut Message from the Statut Code
+			statusMessage = statusCodeArray[statusCode]
+
+		# Get the MIME content-type from the file extension
+			contentType = getMIMEfromPath filePath
+
+		# Request Header Parser
+			protocol = (parseReqHeader reqHeader)['protocol']
+
+			# Verify that the protocol version is handled by the server, if not, changes the protocol version to the server's
+			if protocol isnt _SERVER_PROTOCOL
+				if protocol is 'HTTP/0.9'
+					protocol = 'HTTP/0.9'
+				else
+					protocol = _SERVER_PROTOCOL
+
+			if callback
+				callback {
+					statusLine:{
+						protocol: protocol
+						statusCode: statusCode
+						statusMessage: statusMessage
+						}
+					date: new Date
+					contentType: contentType
+					contentLength: fileSize
+					lastModified: filelastModified
+					server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
+
+					toString : ->
+						"#{@statusLine.protocol} #{@statusLine.statusCode} #{@statusLine.statusMessage}\r\nDate: #{@date}\r\nContent-Type: #{@contentType}\r\nContent-Length: #{@contentLength}\r\nLast-Modified: #{@lastModified}\r\nServer: #{@server}\r\n\r\n"
+					}
+	else
 	#File Infos
-		if err
-			fileSize = Buffer.byteLength createErrorPage(), 'utf8'
-			filelastModified = new Date
-		else
-			fileSize = stats.size
-			filelastModified = stats.mtime
+		fileSize = Buffer.byteLength createErrorPage(err, errCode), 'utf8'
+		filelastModified = new Date
+
+	# Get the MIME content-type from the file extension
+		contentType = 'text/html'
 
 	# Get the Statut Message from the Statut Code
 		statusMessage = statusCodeArray[statusCode]
-
-	# Get the MIME content-type from the file extension
-		contentType = getMIMEfromPath filePath
 
 	# Request Header Parser
 		protocol = (parseReqHeader reqHeader)['protocol']
@@ -155,6 +191,8 @@ buildRespHeader = (reqHeader, statusCode, filePath, callback)->
 				toString : ->
 					"#{@statusLine.protocol} #{@statusLine.statusCode} #{@statusLine.statusMessage}\r\nDate: #{@date}\r\nContent-Type: #{@contentType}\r\nContent-Length: #{@contentLength}\r\nLast-Modified: #{@lastModified}\r\nServer: #{@server}\r\n\r\n"
 				}
+
+
 
 # Parse the request Header to extract data from it
 parseReqHeader = (reqHeader)->
@@ -188,7 +226,7 @@ processResponse = (reqHeader, realPath, socket)->
 			console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
 
 		# Call buildRespHeader function to create the header and send the file
-		buildRespHeader reqHeader, 200, realPath, (respHeader)->
+		buildRespHeader null, null, reqHeader, 200, realPath, (respHeader)->
 			socket.write respHeader.toString(), ->
 				fileStream.pipe socket
 
@@ -209,9 +247,16 @@ processResponse = (reqHeader, realPath, socket)->
 				_errorCode = 500
 
 		# Call buildRespHeader function to create the header and the error  Page
-		buildRespHeader reqHeader, _errorCode, realPath, (respHeader)->
+		buildRespHeader err, _errorCode, reqHeader, _errorCode, null, (respHeader)->
 			socket.write respHeader.toString(), ->
-				socket.end createErrorPage(err, _errorCode)
+				socket.end createErrorPage err, _errorCode
+
+
+
+
+
+
+
 
 ### WILLY WONKA ###############################################################
 
@@ -228,7 +273,7 @@ server = net.createServer (socket)->
 		_filePath = if filePath is '/' then 'index.html' else filePath
 
 		# Verify that the file is either in the webroot or in libServer
-		_testServersFiles = new RegExp /^\/libServer\//i
+		_testServersFiles = /^\/libServer\//i
 		_root = if _testServersFiles.test(filePath) then '.' else _WEBROOT
 
 		realPath = path.join(_root, _filePath)
