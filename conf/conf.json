@@ -1,7 +1,7 @@
 {
-	"webroot": "./www",
-	"defaultIndex": "index.html",
-	"port": "3333",
+	"Webroot": "./www",
+	"DefaultIndex": "index.html",
+	"Port": "3333",
 	"HTML_Footer_onError": "Mon Serveur Web à moi ... &#169; Moi",
-	"debug": true
+	"Debug": true
 }
