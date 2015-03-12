@@ -12,6 +12,7 @@ conf = require _conf_path
 net = require 'net'
 fs = require 'fs'
 path = require 'path'
+stream = require 'stream'
 
 
 ## CONSTANTS ##
@@ -75,89 +76,104 @@ contentTypeArray =
 	mp4: 'video/mpeg'
 
 #REGEX
-_STATUSLINE_RG = /^([A-Z]+) +((\/*[^\s]*)\/+([^\s]*)) +(HTTP\/(.+))$/m
+_STATUSLINE_RG = /^([A-Z]+) +((\/*[^\s]*)\/+([^\s]*)) +([A-Z]+)\/(.+)\r\n/ # check that the request status line looks like : GET /images/test.css HTTP/1.0
 
 
 ### OUMPA-LOUMPAS #############################################################
 
-processReqHeader = (reqHeader, socket, callback) ->
+# Parse the request header... return an object with all the data from the request header
+parseReqHeader = (reqHeader) ->
 
-	setTimeout ->
-		strHeader = reqHeader.toString 'utf8'
+	strHeader = reqHeader.toString 'utf8'
+	statusLineFields = _STATUSLINE_RG.exec strHeader
 
-		if _DEBUG
-			console.log 'Request Header :', strHeader, '\n\n'
+	if statusLineFields is null
+		return null
 
-		statusCode = 200
-		root = _WEBROOT
+	if _DEBUG
+		console.log 'Request Header :', strHeader, '\n'
 
-		statusLineFields = _STATUSLINE_RG.exec strHeader
+	statusLine = (statusLineFields[0].split('\\'))[0]
 
-		console.log 'fields :', statusLineFields
+	requestInfos =
+		statusLine: statusLine
+		method: statusLineFields[1]
+		fullPath: statusLineFields[2] # path + file
+		path: statusLineFields[3] # just the path, no file
+		file: statusLineFields[4] # file + extension
+		protocol: statusLineFields[5]
+		protocolVersion: statusLineFields[6]
 
-		statusLine = statusLineFields[3]
-		statusLineArray = statusLine.split '/'
+# analyse and process the request header... returns an object with all the data needed to build a response header aswell as readable stream or an error page
+processRequest = (reqHeader, socket, callback) ->
 
-		console.log 'statusLineArray :', statusLineArray
+	requestFields = parseReqHeader reqHeader # Parse the request Header and returns an object with all the fields
 
-		if statusLineFields is null then statusCode = 400 # Bad request
+	statusCode = 200
+	root = _WEBROOT
 
-		if statusLineFields[1] is 'POST' then statusCode =  501 # not implemented
+	fullPath = requestFields.path
+	fullPathArray = fullPath.split '/'
 
-		# if statusLineFields[4].length > 255 then statusCode =  414 # too long
+	if requestFields is null then statusCode = 400 # Bad request
 
-		if statusLineArray[1] is _SERVER_INTERNAL_CONFIG
-			root = '.'
+	if requestFields.method is 'POST' then statusCode =  501 # not implemented
 
-		if statusLineFields[2] is '/'
-			target = path.join root, _INDEX
+	if fullPathArray[1] is _SERVER_INTERNAL_CONFIG
+		root = '.'
+
+	if requestFields.fullPath is '/'
+		target = path.join root, _INDEX
+	else
+		target = path.join root, requestFields.fullPath
+
+	fs.stat target, (err, stats)->
+		if err
+			statusCode =  if statusCode is 200 then 404 else statusCode # not found
 		else
-			target = path.join root, statusLineFields[2]
+			isDirectory = stats.isDirectory()
+			if isDirectory
+				statusCode =  403 # forbidden
 
-		fs.stat target, (err, stats)->
+		if statusCode is 200 # if OK...
+			fileToProcess = fs.createReadStream target
+			lastModified = stats.mtime
+			fileSize = stats.size
+			contentType = getMIMEfromPath target
 
-			if err
-				statusCode =  if statusCode is 200 then 404 else statusCode # not found
-			else
-				isDirectory = stats.isDirectory()
-				if isDirectory
-					statusCode =  403 # forbidden
-
-			lastModified = if statusCode is 200 then stats.mtime else new Date
-			fileSize = if statusCode is 200 then stats.size else Buffer.byteLength buildErrorPage(statusCode), 'utf8'
-
-			fileInfos =
-				statusCode: statusCode
-				# statusLine: statusLineFields[0]
-				method: statusLineFields[1]
-				# requestedPath: statusLineFields[2]
-				# directoryPath: statusLineFields[3]
-				file: statusLineFields[4]
-				# filePath: directoryPath + file
-				realPath: target
-				protocol: (statusLineFields[5].split('/'))[0]
-				protocolVersion: statusLineFields[6]
-				mtime : lastModified
-				size: fileSize
-
-			callback fileInfos
-	,0
+		else # if any error...
+			fileToProcess = buildErrorPage statusCode
+			lastModified = new Date
+			fileSize = Buffer.byteLength fileToProcess, 'utf8'
+			contentType = 'text/html'
 
 
+		fileInfos =
+			statusCode: statusCode
+			method: requestFields.method
+			file: requestFields.file
+			protocol: requestFields.protocol
+			protocolVersion: requestFields.protocolVersion
+			fileToProcess: fileToProcess
+			MIMEType: contentType
+			mtime : lastModified
+			size: fileSize
+
+		callback fileInfos
+
+# Takes all the infos from the request header and creates the response header according... returns an object
 buildResponseHeader = (fileInfos, callback)->
 
 	setTimeout ->
-	#File Infos
+		#File Infos
 		statusCode = fileInfos.statusCode
 		protocol = fileInfos.protocol
 		protocolVersion = fileInfos.protocolVersion
-		realPath = fileInfos.realPath
 		fileSize = fileInfos.size
 		filelastModified = fileInfos.mtime
+		contentType = fileInfos.MIMEType
 
-		contentType = getMIMEfromPath realPath
-
-	# Get the Statut Message from the Statut Code
+		# Get the Statut Message from the Statut Code
 		statusMessage = statusCodeArray[statusCode]
 
 		# Verify that the protocol version is handled by the server, if not, changes the protocol version to the server's
@@ -168,51 +184,54 @@ buildResponseHeader = (fileInfos, callback)->
 		if callback
 			respHeader = {
 				statusLine:{
-					protocol: protocolVersion
+					protocol: protocol
+					protocolVersion: protocolVersion
 					statusCode: statusCode
 					statusMessage: statusMessage
-					}
-				date: new Date
-				contentType: contentType
-				contentLength: fileSize
-				lastModified: filelastModified
-				server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
+				}
+				Date: new Date
+				'Content-Type': contentType
+				'Content-Length': fileSize
+				'Last-Modified': filelastModified
+				Server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
 
 				toString : ->
-					"HTTP/#{@statusLine.protocol} #{@statusLine.statusCode} #{@statusLine.statusMessage}\r\nDate: #{@date}\r\nContent-Type: #{@contentType}\r\nContent-Length: #{@contentLength}\r\nLast-Modified: #{@lastModified}\r\nServer: #{@server}\r\n\r\n"
-				}
+					crlf = '\r\n'
+					header = "#{protocol}/#{protocolVersion} #{statusCode} #{statusMessage}#{crlf}"
+					for key, value of respHeader
+						header += "#{key}: #{value}#{crlf}"
+					header + crlf
+			}
 			callback respHeader
 	,0
 
+# Looks at the fileToProcess and acts according... returns nothing
 processResponse = (fileInfos, socket)->
+
 	buildResponseHeader fileInfos, (respHeader)->
+
+		fileToProcess = fileInfos.fileToProcess
 		statusCode = fileInfos.statusCode
-		requestedPath = fileInfos.realPath
 
-		if statusCode is 200
+		if isReadableStream fileToProcess
 
-			fileStream = fs.createReadStream requestedPath
+			if _DEBUG
+				console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
 
-			fileStream.on 'open', (data)->
+			socket.write respHeader.toString(), ->
+				fileToProcess.pipe socket
 
-				if _DEBUG
-					console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
-
-				socket.write respHeader.toString(), ->
-					fileStream.pipe socket
-
-			fileStream.on 'end', ->
+			fileToProcess.on 'end', ->
 				socket.end()
 
-			fileStream.on 'error', (err)->
-
+			fileToProcess.on 'error', (err)->
 				console.error 'FILESTREAM.ERROR : il y a une erreur:', err['code']
 
 		else
 			socket.write respHeader.toString(), ->
 				socket.end buildErrorPage statusCode
 
-# Get the MIME content-type from the file extension
+# Gets the MIME content-type from the file extension... returns the MIMEType of the file as a string
 getMIMEfromPath = (filePath)->
 
 	realPath = path.normalize(filePath) # to take care of // or /.. or /.
@@ -225,8 +244,7 @@ getMIMEfromPath = (filePath)->
 
 	contentType
 
-
-# Create an Error Page
+# Creates an Error Page... returns an error page as a string
 buildErrorPage = (statusCode)->
 
 	if !statusCode
@@ -250,33 +268,10 @@ buildErrorPage = (statusCode)->
 			</footer>
 		</html>"
 
-# DEPRECATED Create an Error Page
-buildErrorPageAsync = (statusCode, callback)->
+# Checks that an object is a readable qstream or not... returns true/false
+isReadableStream = (obj)->
 
-	setTimeout ->
-		if !statusCode
-			statusCode = 500
-
-		errorMessage = htmlErrorMessage[statusCode]
-		htmlErrorPage = "<!DOCTYPE HTML>
-			<html>
-				<head>
-				<meta charset='UTF-8'>
-				<script>function getScreenHeight(){height = screen.height; window.alert(height);return height}</script>
-				</head>
-				<body>
-					<div align='center'><img src='./libServer/ban.png'></i></div>
-						<div style='height:450px'>
-							<h1 align='center'>ERROR #{statusCode}</h1>
-							<h1 align='center'>#{errorMessage}</h1>
-						</div>
-				</body>
-				<footer>
-					<p align='center'>#{_FOOTER}</p>
-				</footer>
-			</html>"
-		callback htmlErrorPage
-	, 0
+	obj instanceof stream.Stream && typeof obj.open is 'function'
 
 
 ### WILLY WONKA ###############################################################
@@ -286,8 +281,7 @@ server = net.createServer (socket)->
 
 	# When the 'data' event is fired from the socket, responds to the request
 	socket.on 'data', (reqHeader)->
-		console.log '>>>>>>>>> reqHeader :\n', reqHeader.toString('utf8'), '\n'
-		processReqHeader reqHeader, socket, (fileInfos)->
+		processRequest reqHeader, socket, (fileInfos)->
 			processResponse fileInfos, socket
 
 	# SOCKET TimeOut, throws an errorPage and closes the socket
