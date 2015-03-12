@@ -89,7 +89,6 @@ processReqHeader = (reqHeader, socket, callback) ->
 			console.log 'Request Header :', strHeader, '\n\n'
 
 		statusCode = 200
-		# target = null
 		root = _WEBROOT
 
 		statusLineFields = _STATUSLINE_RG.exec strHeader
@@ -105,9 +104,10 @@ processReqHeader = (reqHeader, socket, callback) ->
 
 		if statusLineFields[1] is 'POST' then statusCode =  501 # not implemented
 
-		if statusLineFields[4].length > 255 then statusCode =  414 # too long
+		# if statusLineFields[4].length > 255 then statusCode =  414 # too long
 
-		if statusLineArray[1] is _SERVER_INTERNAL_CONFIG then root = '.'
+		if statusLineArray[1] is _SERVER_INTERNAL_CONFIG
+			root = '.'
 
 		if statusLineFields[2] is '/'
 			target = path.join root, _INDEX
@@ -189,37 +189,28 @@ processResponse = (fileInfos, socket)->
 		statusCode = fileInfos.statusCode
 		requestedPath = fileInfos.realPath
 
-		fileStream = fs.createReadStream requestedPath
+		if statusCode is 200
 
-		fileStream.on 'open', (data)->
+			fileStream = fs.createReadStream requestedPath
 
-			if _DEBUG
-				console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
+			fileStream.on 'open', (data)->
 
-			socket.write respHeader.toString(), ->
-				fileStream.pipe socket
+				if _DEBUG
+					console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
 
-		fileStream.on 'end', ->
-			socket.end()
+				socket.write respHeader.toString(), ->
+					fileStream.pipe socket
 
-		fileStream.on 'error', (err)->
+			fileStream.on 'end', ->
+				socket.end()
 
-			_statusCode = 500
+			fileStream.on 'error', (err)->
 
-			if _DEBUG
 				console.error 'FILESTREAM.ERROR : il y a une erreur:', err['code']
 
-			switch err['code']
-						when 'EISDIR'
-							_statusCode = 403
-						when 'ENOENT'
-							_statusCode = 404
-						when 'ENAMETOOLONG'
-							_statusCode = 414
-
-
+		else
 			socket.write respHeader.toString(), ->
-				socket.end buildErrorPage _statusCode
+				socket.end buildErrorPage statusCode
 
 # Get the MIME content-type from the file extension
 getMIMEfromPath = (filePath)->
@@ -237,6 +228,7 @@ getMIMEfromPath = (filePath)->
 
 # Create an Error Page
 buildErrorPage = (statusCode)->
+
 	if !statusCode
 		statusCode = 500
 
@@ -245,10 +237,9 @@ buildErrorPage = (statusCode)->
 		<html>
 			<head>
 			<meta charset='UTF-8'>
-			<script>function getScreenHeight(){height = screen.height; window.alert(height);return height}</script>
 			</head>
 			<body>
-				<div align='center'><img src='./libServer/ban.png'></i></div>
+				<div align='center'><img src='/libServer/ban.png'></i></div>
 					<div style='height:450px'>
 						<h1 align='center'>ERROR #{statusCode}</h1>
 						<h1 align='center'>#{errorMessage}</h1>
@@ -259,6 +250,34 @@ buildErrorPage = (statusCode)->
 			</footer>
 		</html>"
 
+# DEPRECATED Create an Error Page
+buildErrorPageAsync = (statusCode, callback)->
+
+	setTimeout ->
+		if !statusCode
+			statusCode = 500
+
+		errorMessage = htmlErrorMessage[statusCode]
+		htmlErrorPage = "<!DOCTYPE HTML>
+			<html>
+				<head>
+				<meta charset='UTF-8'>
+				<script>function getScreenHeight(){height = screen.height; window.alert(height);return height}</script>
+				</head>
+				<body>
+					<div align='center'><img src='./libServer/ban.png'></i></div>
+						<div style='height:450px'>
+							<h1 align='center'>ERROR #{statusCode}</h1>
+							<h1 align='center'>#{errorMessage}</h1>
+						</div>
+				</body>
+				<footer>
+					<p align='center'>#{_FOOTER}</p>
+				</footer>
+			</html>"
+		callback htmlErrorPage
+	, 0
+
 
 ### WILLY WONKA ###############################################################
 
@@ -267,6 +286,7 @@ server = net.createServer (socket)->
 
 	# When the 'data' event is fired from the socket, responds to the request
 	socket.on 'data', (reqHeader)->
+		console.log '>>>>>>>>> reqHeader :\n', reqHeader.toString('utf8'), '\n'
 		processReqHeader reqHeader, socket, (fileInfos)->
 			processResponse fileInfos, socket
 
@@ -294,6 +314,7 @@ server.listen _PORT, ->
 		console.log 'Debug Mode:', _DEBUG
 		console.log 'Configuration file:', _conf_path, '\r\n'
 		console.log 'WebRoot :', _WEBROOT
+		console.log 'LibServer :', _SERVER_INTERNAL_CONFIG
 		console.log 'Default Index file :', _INDEX
 		console.log 'HTML Footer Message :', _FOOTER
 		console.log '\r\n'
