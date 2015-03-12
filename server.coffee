@@ -140,7 +140,21 @@ processRequest = (reqHeader, socket, callback) ->
 		else
 			isDirectory = stats.isDirectory()
 			if isDirectory
-				statusCode =  403 # forbidden
+				tmpTarget = path.join target, _INDEX
+				console.log '>>>>>>>>>>>>>>>>>>>>>>>>>> isDirectory :', tmpTarget
+
+				try
+					fs.accessSync tmpTarget
+				catch err
+					console.log '<<<<<<<<<< ACCESS error :', err
+					statusCode =  403 # forbidden
+
+				if statusCode isnt 403
+					console.log '<<<<<<<<<< ACCESS OK'
+					target = tmpTarget
+
+	##################################################################################################
+
 
 		if statusCode is 200 # if OK...
 			fileToProcess = fs.createReadStream target
@@ -152,7 +166,6 @@ processRequest = (reqHeader, socket, callback) ->
 			fileToProcess = buildErrorPage statusCode
 			lastModified = new Date
 			contentType = 'text/html'
-
 
 		infos =
 			request:
@@ -235,7 +248,8 @@ processResponse = (infos, socket)->
 				socket.end()
 
 			fileToProcess.on 'error', (err)->
-				console.error 'FILESTREAM.ERROR : il y a une erreur:', err['code'] + '\n'
+				console.error "FILESTREAM.ERROR : il y a une erreur:", err['code'],
+				"avec le fichier : #{infos.file.name}\n"
 
 	else
 		infos.file.size = Buffer.byteLength fileToProcess, 'utf8'
@@ -269,6 +283,7 @@ buildErrorPage = (statusCode)->
 		<html>
 			<head>
 			<meta charset='UTF-8'>
+			<title>Error : #{funnyMessage}</title>
 			</head>
 			<body>
 				<div align='center'><img src='/libServer/ban.png'></i></div>
