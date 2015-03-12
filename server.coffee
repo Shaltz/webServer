@@ -46,9 +46,16 @@ statusCodeArray =
 	403: 'Forbidden Access !!' # No Way !!
 	404: 'Not Found !!' # No idea what you want !!
 	408: 'Request timeOut !!' # Too Long, Can't Wait !!
-	414: 'Request URI too long !!' # Wouah... calm down, mate !!
 	500: 'Internal Server Error !!' # I'm broken... You broke me !!
 	501: 'Not Implemented' # No can do !!!
+
+funnyErrorCodeArray =
+	400: "You're talking to me ??"
+	403: "No Way !!"
+	404: "No idea what you want !!"
+	408: "Too Long, Can't Wait !!"
+	500: "I'm broken... You broke me !!"
+	501: "No can do !!!"
 
 # The HTML Messages on Errors
 htmlErrorMessage =
@@ -144,34 +151,35 @@ processRequest = (reqHeader, socket, callback) ->
 		else # if any error...
 			fileToProcess = buildErrorPage statusCode
 			lastModified = new Date
-			fileSize = Buffer.byteLength fileToProcess, 'utf8'
 			contentType = 'text/html'
 
 
-		fileInfos =
-			statusCode: statusCode
-			method: requestFields.method
-			file: requestFields.file
-			protocol: requestFields.protocol
-			protocolVersion: requestFields.protocolVersion
-			fileToProcess: fileToProcess
-			MIMEType: contentType
-			mtime : lastModified
-			size: fileSize
+		infos =
+			request:
+				statusCode: statusCode
+				method: requestFields.method
+				protocol: requestFields.protocol
+				protocolVersion: requestFields.protocolVersion
+			file:
+				name: requestFields.file
+				fileToProcess: fileToProcess
+				MIMEType: contentType
+				mtime : lastModified
+				size: fileSize
 
-		callback fileInfos
+		callback infos
 
 # Takes all the infos from the request header and creates the response header according... returns an object
-buildResponseHeader = (fileInfos, callback)->
+buildResponseHeader = (infos, callback)->
 
 	setTimeout ->
 		#File Infos
-		statusCode = fileInfos.statusCode
-		protocol = fileInfos.protocol
-		protocolVersion = fileInfos.protocolVersion
-		fileSize = fileInfos.size
-		filelastModified = fileInfos.mtime
-		contentType = fileInfos.MIMEType
+		statusCode = infos.request.statusCode
+		protocol = infos.request.protocol
+		protocolVersion = infos.request.protocolVersion
+		fileSize = infos.file.size
+		filelastModified = infos.file.mtime
+		contentType = infos.file.MIMEType
 
 		# Get the Statut Message from the Statut Code
 		statusMessage = statusCodeArray[statusCode]
@@ -182,52 +190,57 @@ buildResponseHeader = (fileInfos, callback)->
 				protocolVersion  = _SERVER_PROTOCOL_VERSION
 
 		if callback
-			respHeader = {
-				statusLine:{
+			respHeader =
+				statusLine:
 					protocol: protocol
 					protocolVersion: protocolVersion
 					statusCode: statusCode
 					statusMessage: statusMessage
-				}
-				Date: new Date
-				'Content-Type': contentType
-				'Content-Length': fileSize
-				'Last-Modified': filelastModified
-				Server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
+
+				fields:
+					Date: new Date
+					'Content-Type': contentType
+					'Content-Length': fileSize
+					'Last-Modified': filelastModified
+					Server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
 
 				toString : ->
 					crlf = '\r\n'
 					header = "#{protocol}/#{protocolVersion} #{statusCode} #{statusMessage}#{crlf}"
-					for key, value of respHeader
+					for key, value of @fields
 						header += "#{key}: #{value}#{crlf}"
 					header + crlf
-			}
+
 			callback respHeader
 	,0
 
 # Looks at the fileToProcess and acts according... returns nothing
-processResponse = (fileInfos, socket)->
+processResponse = (infos, socket)->
 
-	buildResponseHeader fileInfos, (respHeader)->
+	fileToProcess = infos.file.fileToProcess
+	statusCode = infos.request.statusCode
 
-		fileToProcess = fileInfos.fileToProcess
-		statusCode = fileInfos.statusCode
+	if isReadableStream fileToProcess
 
-		if isReadableStream fileToProcess
-
-			if _DEBUG
-				console.log 'FILESTREAM.OPEN : Un fichier à été servit !'
+		buildResponseHeader infos, (respHeader)->
 
 			socket.write respHeader.toString(), ->
+				if _DEBUG
+					console.log "FILESTREAM.OPEN : #{infos.file.name} est ouvert !!\n"
 				fileToProcess.pipe socket
 
 			fileToProcess.on 'end', ->
+				if _DEBUG
+					console.log "FILESTREAM.END : #{infos.file.name} à été servit !!\n\n"
 				socket.end()
 
 			fileToProcess.on 'error', (err)->
-				console.error 'FILESTREAM.ERROR : il y a une erreur:', err['code']
+				console.error 'FILESTREAM.ERROR : il y a une erreur:', err['code'] + '\n'
 
-		else
+	else
+		infos.file.size = Buffer.byteLength fileToProcess, 'utf8'
+
+		buildResponseHeader infos, (respHeader)->
 			socket.write respHeader.toString(), ->
 				socket.end buildErrorPage statusCode
 
@@ -251,6 +264,7 @@ buildErrorPage = (statusCode)->
 		statusCode = 500
 
 	errorMessage = htmlErrorMessage[statusCode]
+	funnyMessage = funnyErrorCodeArray[statusCode]
 	htmlErrorPage = "<!DOCTYPE HTML>
 		<html>
 			<head>
@@ -260,10 +274,11 @@ buildErrorPage = (statusCode)->
 				<div align='center'><img src='/libServer/ban.png'></i></div>
 					<div style='height:450px'>
 						<h1 align='center'>ERROR #{statusCode}</h1>
-						<h1 align='center'>#{errorMessage}</h1>
+						<h2 align='center'>#{funnyMessage}</h2>
 					</div>
 			</body>
 			<footer>
+				<h2 align='center'>#{errorMessage}</h2>
 				<p align='center'>#{_FOOTER}</p>
 			</footer>
 		</html>"
@@ -281,8 +296,8 @@ server = net.createServer (socket)->
 
 	# When the 'data' event is fired from the socket, responds to the request
 	socket.on 'data', (reqHeader)->
-		processRequest reqHeader, socket, (fileInfos)->
-			processResponse fileInfos, socket
+		processRequest reqHeader, socket, (infos)->
+			processResponse infos, socket
 
 	# SOCKET TimeOut, throws an errorPage and closes the socket
 	socket.on 'timeout', ->
@@ -291,7 +306,7 @@ server = net.createServer (socket)->
 	# SOCKET error, log it and close the socket (socket closed automaticaly when 'error' event is fired)
 	socket.on 'error', (err)->
 		if _DEBUG
-			console.error 'SOCKET.ERROR : il y a une erreur:', err.toString 'utf8'
+			console.error 'SOCKET.ERROR : il y a une erreur:', err.toString 'utf8' + '\n'
 
 
 # Launch the server and listen to port 3333

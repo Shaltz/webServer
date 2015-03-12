@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<meta charset='UTF8'>
+	<meta charset='utf-8'>
 	<title>Webserver Test</title>
 	<script type="text/javascript" src="jquery-2.1.3.min.js"></script>
 	<link rel="stylesheet" type="text/css" href="bootstrap/css/bootstrap.css">
@@ -12,6 +12,15 @@
 		body {
 			padding-top: 100px;
 			padding-bottom: 40px;
+		}
+
+		iframe {
+			border: none;
+			border-radius: 20px;
+
+			display: block;
+			width: 100%;
+			height: 350px;
 		}
 	</style>
 </head>
@@ -46,15 +55,12 @@
 
 		<div class="container">
 			<h1>Sound</h1>
-			<audio src="sounds/trololo.mp3" controls></audio>
+			<audio src="sounds/trololo" controls></audio>
 		</div>
 
 		<div class="container">
 			<h1>Videos</h1>
-			<div class="row">
-				<video src="videos/nyan.mp4" controls style="height:200px;display:inline;border-radius:10px;"></video>
-				<video src="videos/test.mp4" controls style="height:200px;display:inline;border-radius:10px;"></video>
-			</div>
+			<iframe src="iframe"></iframe>
 		</div>
 	</div>
 
