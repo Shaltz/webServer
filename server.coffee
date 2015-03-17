@@ -42,6 +42,7 @@ _DEBUG = conf['Debug']
 # The Statut Codes Array
 statusCodeArray =
 	200: 'OK !!' # yeah baby !!
+	302: 'Redirect !!'
 	400: 'Bad Request !!' # you're talking to me ??
 	403: 'Forbidden Access !!' # No Way !!
 	404: 'Not Found !!' # No idea what you want !!
@@ -98,7 +99,7 @@ parseReqHeader = (reqHeader) ->
 		return null
 
 	if _DEBUG
-		console.log 'Request Header :', strHeader, '\n'
+		console.log 'Request Header :\n', strHeader, '\n'
 
 	statusLine = (statusLineFields[0].split('\\'))[0]
 
@@ -111,6 +112,10 @@ parseReqHeader = (reqHeader) ->
 		protocol: statusLineFields[5]
 		protocolVersion: statusLineFields[6]
 
+	console.log 'requestInfos :', requestInfos
+
+	requestInfos
+
 # analyse and process the request header... returns an object with all the data needed to build a response header aswell as readable stream or an error page
 processRequest = (reqHeader, socket, callback) ->
 
@@ -119,7 +124,8 @@ processRequest = (reqHeader, socket, callback) ->
 	statusCode = 200
 	root = _WEBROOT
 
-	fullPath = requestFields.path
+	folder = isFolder requestFields
+	fullPath = requestFields.fullPath
 	fullPathArray = fullPath.split '/'
 
 	if requestFields is null then statusCode = 400 # Bad request
@@ -129,43 +135,68 @@ processRequest = (reqHeader, socket, callback) ->
 	if fullPathArray[1] is _SERVER_INTERNAL_CONFIG
 		root = '.'
 
-	if requestFields.fullPath is '/'
+
+############  tester d abbord si le repertoire existe puis ensuite si le repertoire contient un fichier index.html
+
+
+	if fullPath is '/'
 		target = path.join root, _INDEX
+		console.log 'FullPath If:', fullPath
+
+	else if folder
+		tmpPath = path.join fullPath, _INDEX
+		console.log 'FullPath else if:', fullPath
+
+		try
+			console.log '>>>>> try/catch :', __dirname + root + tmpPath
+			tmpPath = path.join  __dirname, root, tmpPath
+			fs.accessSync tmpPath
+		catch err
+			console.log '<<<<<<<<<< ACCESS error :', err
+			statusCode =  403 # forbidden
+			tmpPath = fullPath
+
+		target = tmpPath
+
 	else
-		target = path.join root, requestFields.fullPath
+		target = path.join root, fullPath
+
+	console.log 'Imprimer la target :', target
+
+#################################################################################################
+
 
 	fs.stat target, (err, stats)->
 		if err
 			statusCode =  if statusCode is 200 then 404 else statusCode # not found
 		else
 			isDirectory = stats.isDirectory()
-			if isDirectory
-				tmpTarget = path.join target, _INDEX
-				console.log '>>>>>>>>>>>>>>>>>>>>>>>>>> isDirectory :', tmpTarget
+			# folder = isFolder requestFields
 
-				try
-					fs.accessSync tmpTarget
-				catch err
-					console.log '<<<<<<<<<< ACCESS error :', err
-					statusCode =  403 # forbidden
-
-				if statusCode isnt 403
-					console.log '<<<<<<<<<< ACCESS OK'
-					target = tmpTarget
-
-	##################################################################################################
-
+			if isDirectory && !folder
+				statusCode = 302
+				tmpTarget = fullPath + '/'
+			else
+				tmpTarget = target
 
 		if statusCode is 200 # if OK...
-			fileToProcess = fs.createReadStream target
+			fileToProcess = fs.createReadStream tmpTarget
 			lastModified = stats.mtime
 			fileSize = stats.size
-			contentType = getMIMEfromPath target
+			contentType = getMIMEfromPath tmpTarget
+			location = null
+
+		else if statusCode is 302
+			location = tmpTarget
+			lastModified = null
+			fileSize = null
+			contentType = null
 
 		else # if any error...
 			fileToProcess = buildErrorPage statusCode
 			lastModified = new Date
 			contentType = 'text/html'
+			location = null
 
 		infos =
 			request:
@@ -179,6 +210,7 @@ processRequest = (reqHeader, socket, callback) ->
 				MIMEType: contentType
 				mtime : lastModified
 				size: fileSize
+				location: location
 
 		callback infos
 
@@ -193,6 +225,7 @@ buildResponseHeader = (infos, callback)->
 		fileSize = infos.file.size
 		filelastModified = infos.file.mtime
 		contentType = infos.file.MIMEType
+		redirectLocation = infos.file.location
 
 		# Get the Statut Message from the Statut Code
 		statusMessage = statusCodeArray[statusCode]
@@ -215,13 +248,15 @@ buildResponseHeader = (infos, callback)->
 					'Content-Type': contentType
 					'Content-Length': fileSize
 					'Last-Modified': filelastModified
+					Location: redirectLocation
 					Server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
 
 				toString : ->
 					crlf = '\r\n'
 					header = "#{protocol}/#{protocolVersion} #{statusCode} #{statusMessage}#{crlf}"
 					for key, value of @fields
-						header += "#{key}: #{value}#{crlf}"
+						if value isnt null
+							header += "#{key}: #{value}#{crlf}"
 					header + crlf
 
 			callback respHeader
@@ -250,6 +285,11 @@ processResponse = (infos, socket)->
 			fileToProcess.on 'error', (err)->
 				console.error "FILESTREAM.ERROR : il y a une erreur:", err['code'],
 				"avec le fichier : #{infos.file.name}\n"
+
+	else if statusCode is 302
+
+		buildResponseHeader infos, (respHeader)->
+			socket.end respHeader.toString()
 
 	else
 		infos.file.size = Buffer.byteLength fileToProcess, 'utf8'
@@ -304,6 +344,17 @@ isReadableStream = (obj)->
 	obj instanceof stream.Stream && typeof obj.open is 'function'
 
 
+isFolder = (reqInfos) ->
+
+	file = reqInfos.file
+	if file is '' || file is undefined
+		console.log '>>>>>>>>> is a Directory: TRUE :', file
+		return true
+	else
+		console.log '>>>>>>>>> is a Directory: FALSE:', file
+		return false
+
+
 ### WILLY WONKA ###############################################################
 
 # Create the server instance
@@ -316,7 +367,9 @@ server = net.createServer (socket)->
 
 	# SOCKET TimeOut, throws an errorPage and closes the socket
 	socket.on 'timeout', ->
-		processResponse fileInfos, socket
+		# processResponse fileInfos, socket
+		console.log 'timeOut Fired !!!'
+		socket.end()
 
 	# SOCKET error, log it and close the socket (socket closed automaticaly when 'error' event is fired)
 	socket.on 'error', (err)->
