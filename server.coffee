@@ -100,6 +100,7 @@ parseReqHeader = (reqHeader) ->
 
 	if _DEBUG
 		console.log 'Request Header :\n', strHeader, '\n'
+		console.log 'StatusLine Fields :\n', statusLineFields, '\n'
 
 	statusLine = (statusLineFields[0].split('\\'))[0]
 
@@ -111,8 +112,6 @@ parseReqHeader = (reqHeader) ->
 		file: statusLineFields[4] # file + extension
 		protocol: statusLineFields[5]
 		protocolVersion: statusLineFields[6]
-
-	console.log 'requestInfos :', requestInfos
 
 	requestInfos
 
@@ -137,24 +136,14 @@ processRequest = (reqHeader, socket, callback) ->
 
 	if fullPath is '/'
 		target = path.join root, _INDEX
-		console.log 'FullPath If:', fullPath
-
-
-############  tester d abbord si le repertoire existe puis ensuite si le repertoire contient un fichier index.html
-
 
 	else if folder
 		tmpPath = path.join __dirname, root, fullPath, _INDEX
-		console.log 'FullPath else if:', fullPath
 
 		target = tmpPath
 
 	else
 		target = path.join root, fullPath
-
-	console.log 'Imprimer la target :', target
-
-#################################################################################################
 
 
 	fs.stat target, (err, stats)->
@@ -162,11 +151,9 @@ processRequest = (reqHeader, socket, callback) ->
 			# statusCode =  if statusCode is 200 then 404 else statusCode # not found
 			try
 				tmpPath = path.join path.dirname target
-				console.log '>>>>> try/catch :', tmpPath
 				statusCode = 403
 				fs.accessSync tmpPath
 			catch err
-				console.log '<<<<<<<<<< ACCESS error :', err
 				statusCode =  404 # forbidden
 				tmpPath = fullPath
 		else
