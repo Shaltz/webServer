@@ -335,10 +335,12 @@ isFolder = (reqInfos) ->
 
 	file = reqInfos.file
 	if file is '' || file is undefined
-		console.log '>>>>>>>>> is a Directory: TRUE :', file
+		if _DEBUG
+			console.log '>>>>>>>>> is a Directory: TRUE :', file
 		return true
 	else
-		console.log '>>>>>>>>> is a Directory: FALSE:', file
+		if _DEBUG
+			console.log '>>>>>>>>> is a Directory: FALSE:', file
 		return false
 
 
