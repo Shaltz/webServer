@@ -1,5 +1,5 @@
 {
-	"Webroot": "./www",
+	"Webroot": "www",
 	"DefaultIndex": "index.html",
 	"Port": "3333",
 	"HTML_Footer_onError": "Mon Serveur Web à moi ... &#169; Moi",

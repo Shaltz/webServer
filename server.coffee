@@ -135,26 +135,17 @@ processRequest = (reqHeader, socket, callback) ->
 	if fullPathArray[1] is _SERVER_INTERNAL_CONFIG
 		root = '.'
 
-
-############  tester d abbord si le repertoire existe puis ensuite si le repertoire contient un fichier index.html
-
-
 	if fullPath is '/'
 		target = path.join root, _INDEX
 		console.log 'FullPath If:', fullPath
 
-	else if folder
-		tmpPath = path.join fullPath, _INDEX
-		console.log 'FullPath else if:', fullPath
 
-		try
-			console.log '>>>>> try/catch :', __dirname + root + tmpPath
-			tmpPath = path.join  __dirname, root, tmpPath
-			fs.accessSync tmpPath
-		catch err
-			console.log '<<<<<<<<<< ACCESS error :', err
-			statusCode =  403 # forbidden
-			tmpPath = fullPath
+############  tester d abbord si le repertoire existe puis ensuite si le repertoire contient un fichier index.html
+
+
+	else if folder
+		tmpPath = path.join __dirname, root, fullPath, _INDEX
+		console.log 'FullPath else if:', fullPath
 
 		target = tmpPath
 
@@ -168,10 +159,19 @@ processRequest = (reqHeader, socket, callback) ->
 
 	fs.stat target, (err, stats)->
 		if err
-			statusCode =  if statusCode is 200 then 404 else statusCode # not found
+			# statusCode =  if statusCode is 200 then 404 else statusCode # not found
+			try
+				tmpPath = path.join path.dirname target
+				console.log '>>>>> try/catch :', tmpPath
+				statusCode = 403
+				fs.accessSync tmpPath
+			catch err
+				console.log '<<<<<<<<<< ACCESS error :', err
+				statusCode =  404 # forbidden
+				tmpPath = fullPath
 		else
 			isDirectory = stats.isDirectory()
-			# folder = isFolder requestFields
+			folder = isFolder requestFields
 
 			if isDirectory && !folder
 				statusCode = 302
