@@ -268,6 +268,7 @@ class Response
 	process : (socket) ->
 		@fileToProcess = @infos.file.fileToProcess
 		@statusCode = @infos.request.statusCode
+		@method = @infos.request.method
 
 		if @isReadableStream @fileToProcess
 
@@ -287,7 +288,7 @@ class Response
 					console.error "FILESTREAM.ERROR : il y a une erreur:", err['code'],
 					"avec le fichier : #{@infos.file.name}\n"
 
-		else if @statusCode is 302
+		else if @statusCode is 302 || @method is 'HEAD'
 
 			@buildHeader (respHeader)=>
 				socket.end respHeader.toString()
