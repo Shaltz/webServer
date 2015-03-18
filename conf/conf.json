@@ -1,7 +1,7 @@
 {
-	"Webroot": "www",
-	"DefaultIndex": "index.html",
-	"Port": "3333",
-	"HTML_Footer_onError": "WwWaiter WebServer... If you see this, you've ran into an error !!",
-	"Debug": false
+	"webroot": "www",
+	"defaultIndex": "index.html",
+	"port": "3333",
+	"html_Footer_onError": "WwWaiter WebServer... If you see this, you've ran into an error !!",
+	"debug": false
 }

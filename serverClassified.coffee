@@ -29,19 +29,19 @@ _SERVER_PROTOCOL_VERSION = '1.0' # The server only hadles HTTP version 1.0
 _SERVER_INTERNAL_CONFIG = 'libServer'
 
 # The port to use
-_PORT = conf.Port
+_PORT = conf.port
 
 # The web root folder
-_WEBROOT = conf.Webroot
+_WEBROOT = conf.webroot
 
 # The default index file
-_INDEX = conf.DefaultIndex
+_INDEX = conf.defaultIndex
 
 # The HTML Footer Message
-_FOOTER = conf.HTML_Footer_onError
+_FOOTER = conf.html_Footer_onError
 
 # Debug mode (true or false)
-_DEBUG = conf.Debug
+_DEBUG = conf.debug
 
 
 # The Statut Codes Array
@@ -87,8 +87,9 @@ contentTypeArray =
 	mp3: 'audio/mpeg3'
 	mp4: 'video/mpeg'
 
-#REGEX
-_STATUSLINE_RG = /^([A-Z]+) +((\/*[^\s]*)\/+([^\s]*)) +([A-Z]+)\/(.+)\r\n/ # check that the request status line looks like : GET /images/test.css HTTP/1.0
+# REGEX
+# checks that the request status line looks like : GET /images/test.css HTTP/1.0
+_STATUSLINE_RG = /^([A-Z]+) +((\/*[^\s]*)\/+([^\s]*)) +([A-Z]+)\/(.+)\r\n/
 
 
 class Request
@@ -147,20 +148,21 @@ class Request
 		else
 			target = path.join @root, fullPath
 
-
 		fs.stat target, (err, stats)=>
 			if err
-				# statusCode =  if statusCode is 200 then 404 else statusCode # not found
 				try
-					tmpPath = path.join path.dirname target
-					@statusCode = 403
+					if (path.basename target) is _INDEX
+						tmpPath = path.join path.dirname target
+					else
+						tmpPath = target
+
 					fs.accessSync tmpPath
+					@statusCode = 403 # forbidden
 				catch err
-					@statusCode =  404 # forbidden
+					@statusCode =  404 # not found
 					tmpPath = fullPath
 			else
 				isDirectory = stats.isDirectory()
-				# folder = @isFolder @requestFields
 
 				if isDirectory && !folder
 					@statusCode = 302
@@ -348,11 +350,6 @@ class ErrorPage
 
 	getErrorPage : ->
 		@htmlErrorPage
-
-
-
-
-
 
 
 ######## MAIN #########
