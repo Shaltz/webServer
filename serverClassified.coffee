@@ -1,7 +1,14 @@
-# config (webroot, port) from
-_conf_path = './conf/conf.json'
+###############################################################################
+##
+##	With Classes
+##
+###############################################################################
 
-conf = require _conf_path
+# config (webroot, port) from
+_CONF_PATH = './conf/conf.json' # to be displayed in terminal
+
+conf = require _CONF_PATH
+package_json = require './package.json'
 net = require 'net'
 fs = require 'fs'
 path = require 'path'
@@ -10,26 +17,31 @@ stream = require 'stream'
 
 ## CONSTANTS ##
 
-# The Server name and version number
-_SERVER_NAME = 'WwWaiter'
-_SERVER_VERSION = '0.2.0'
-_SERVER_PROTOCOL_VERSION = '1.0'
+# The Server configuration constants
+_SERVER_NAME = package_json.name
+_SERVER_VERSION = package_json.version
+_SERVER_DESCRIPTION = package_json.description
+_SERVER_AUTHOR = package_json.author
+_SERVER_LICENCE = package_json.license
+_SERVER_HOMEPAGE = package_json.homepage
+
+_SERVER_PROTOCOL_VERSION = '1.0' # The server only hadles HTTP version 1.0
 _SERVER_INTERNAL_CONFIG = 'libServer'
 
 # The port to use
-_PORT = conf['Port']
+_PORT = conf.Port
 
 # The web root folder
-_WEBROOT = conf['Webroot']
+_WEBROOT = conf.Webroot
 
 # The default index file
-_INDEX = conf['DefaultIndex']
+_INDEX = conf.DefaultIndex
 
 # The HTML Footer Message
-_FOOTER = conf['HTML_Footer_onError']
+_FOOTER = conf.HTML_Footer_onError
 
 # Debug mode (true or false)
-_DEBUG = conf['Debug']
+_DEBUG = conf.Debug
 
 
 # The Statut Codes Array
@@ -330,11 +342,15 @@ class ErrorPage
 				<footer>
 					<h2 align='center'>#{errorMessage}</h2>
 					<p align='center'>#{ErrorPage.footer}</p>
+					<p align='center'>ERROR #{statusCode} : #{funnyMessage}</p>
 				</footer>
 			</html>"
 
 	getErrorPage : ->
 		@htmlErrorPage
+
+
+
 
 
 
@@ -358,19 +374,29 @@ server = net.createServer (socket)->
 
 # Launch the server and listen to port 3333
 server.listen _PORT, ->
-	console.log '\r\n'
+	console.log '\n'
 	console.log '####################################################'
-	console.log '\r\n'
+	console.log '\n'
 	console.log "    #{_SERVER_NAME} v#{_SERVER_VERSION} WebServer ONline on port: #{_PORT}"
-	console.log '\r\n'
+	console.log "    #{_SERVER_DESCRIPTION}"
+	console.log '\n'
 	console.log '####################################################'
-	console.log '\r\n'
+	console.log '\n'
 
-	if _DEBUG
-		console.log 'Debug Mode:', _DEBUG
-		console.log 'Configuration file:', _conf_path, '\r\n'
-		console.log 'WebRoot :', _WEBROOT
-		console.log 'LibServer :', _SERVER_INTERNAL_CONFIG
-		console.log 'Default Index file :', _INDEX
-		console.log 'HTML Footer Message :', _FOOTER
-		console.log '\r\n'
+	if !_DEBUG
+		console.log "Debug Mode: #{_DEBUG}\n"
+		console.log "Author: #{_SERVER_AUTHOR}"
+		console.log "License: #{_SERVER_LICENCE}"
+		console.log "WebRoot : #{_WEBROOT}\n"
+		console.log "Project Homepage : #{_SERVER_HOMEPAGE}"
+		console.log '\n'
+	else
+		console.log "Debug Mode: #{_DEBUG}\n"
+		console.log "Configuration file: #{_CONF_PATH}"
+		console.log "WebRoot : #{_WEBROOT}"
+		console.log "LibServer : #{_SERVER_INTERNAL_CONFIG}"
+		console.log "Default Index file : #{_INDEX}"
+		console.log "Default Footer : #{_FOOTER}\n"
+		console.log "Project Homepage : #{_SERVER_HOMEPAGE}"
+		console.log '\n'
+

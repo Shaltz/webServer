@@ -2,6 +2,6 @@
 	"Webroot": "www",
 	"DefaultIndex": "index.html",
 	"Port": "3333",
-	"HTML_Footer_onError": "Mon Serveur Web à moi ... &#169; Moi",
-	"Debug": true
+	"HTML_Footer_onError": "WwWaiter WebServer... If you see this, you've ran into an error !!",
+	"Debug": false
 }

@@ -1,8 +1,11 @@
 {
-  "name": "webserver",
-  "version": "0.1.0",
-  "description": "a simple http server, written in coffeeScript without external lib beside 'net'",
-  "main": "index.js",
+  "name": "WwWaiter",
+  "version": "0.2.0",
+  "description": "A simple webserver, written in coffeeScript, without any external libs and without the use of the 'http' library",
+  "main": "serverClassified.coffee",
+  "dependencies": {
+  },
+  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -14,19 +17,12 @@
     "web",
     "server",
     "http",
-    "coffee",
-    "script",
-    "coffeescript",
-    "homemade",
-    "diy"
+    "coffeescript"
   ],
-  "author": "ShaltZ",
+  "author": "Pierre-Eddy PINSOLLE",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/Shaltz/webServer/issues"
   },
-  "homepage": "https://github.com/Shaltz/webServer",
-  "dependencies": {
-    "net": "^1.0.2",
-  }
+  "homepage": "https://github.com/Shaltz/webServer"
 }
