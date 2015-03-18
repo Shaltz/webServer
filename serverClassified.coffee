@@ -26,7 +26,7 @@ _SERVER_AUTHOR = package_json.author
 _SERVER_LICENCE = package_json.license
 _SERVER_HOMEPAGE = package_json.homepage
 
-_SERVER_PROTOCOL_VERSION = '1.0' # The server only hadles HTTP version 1.0
+_SERVER_PROTOCOL_VERSION = '1.0' # The server only handles HTTP version 1.0
 _SERVER_INTERNAL_CONFIG = 'libServer'
 
 # The port to use
@@ -91,6 +91,55 @@ contentTypeArray =
 # REGEX
 # checks that the request status line looks like : GET /images/test.css HTTP/1.0
 _STATUSLINE_RG = /^([A-Z]+) +((\/*[^\s]*)\/+([^\s]*)) +([A-Z]+)\/(.+)\r\n/
+
+
+######## MAIN #########
+
+
+# Create the server instance
+server = net.createServer (socket)->
+
+	# When the 'data' event is fired from the socket, responds to the request
+	socket.on 'data', (reqHeader)->
+		new Request(reqHeader).process (infos)->
+			new Response(infos).process socket
+
+	# SOCKET error, log it and close the socket (socket closed automaticaly when 'error' event is fired)
+	socket.on 'error', (err)->
+		if _DEBUG
+			console.error 'SOCKET.ERROR : il y a une erreur:', err.toString 'utf8' + '\n'
+
+
+# Launch the server and listen to port 3333
+server.listen _PORT, ->
+	console.log '\n'
+	console.log '###############################################################################'
+	console.log '\n'
+	console.log " 		 #{_SERVER_NAME} v#{_SERVER_VERSION} WebServer ONline on port: #{_PORT}\n"
+	console.log "    		   #{_SERVER_DESCRIPTION}"
+	console.log "  	#{_SERVER_DESCRIPTION_SEQUEL}"
+	console.log '\n'
+	console.log '###############################################################################'
+	console.log '\n'
+
+	if !_DEBUG
+		console.log "Debug Mode: #{_DEBUG}\n"
+		console.log "Author: #{_SERVER_AUTHOR}"
+		console.log "License: #{_SERVER_LICENCE}"
+		console.log "WebRoot : #{_WEBROOT}"
+		console.log "Configuration file: #{_CONF_PATH}\n"
+		console.log "Project Homepage : #{_SERVER_HOMEPAGE}"
+		console.log '\n'
+	else
+		console.log "Debug Mode: #{_DEBUG}\n"
+		console.log "Configuration file: #{_CONF_PATH}"
+		console.log "WebRoot : #{_WEBROOT}"
+		console.log "LibServer : #{_SERVER_INTERNAL_CONFIG}"
+		console.log "Default Index file : #{_INDEX}"
+		console.log "Default Footer : #{_FOOTER}\n"
+		console.log "Project Homepage : #{_SERVER_HOMEPAGE}"
+		console.log '\n'
+
 
 
 class Request
@@ -320,7 +369,6 @@ class Response
 
 		obj instanceof stream.Stream && typeof obj.open is 'function'
 
-
 class ErrorPage
 	ErrorPage.footer = _FOOTER
 	constructor:  (statusCode) ->
@@ -351,51 +399,3 @@ class ErrorPage
 
 	getErrorPage : ->
 		@htmlErrorPage
-
-
-######## MAIN #########
-
-
-# Create the server instance
-server = net.createServer (socket)->
-
-	# When the 'data' event is fired from the socket, responds to the request
-	socket.on 'data', (reqHeader)->
-		new Request(reqHeader).process (infos)->
-			new Response(infos).process socket
-
-	# SOCKET error, log it and close the socket (socket closed automaticaly when 'error' event is fired)
-	socket.on 'error', (err)->
-		if _DEBUG
-			console.error 'SOCKET.ERROR : il y a une erreur:', err.toString 'utf8' + '\n'
-
-
-# Launch the server and listen to port 3333
-server.listen _PORT, ->
-	console.log '\n'
-	console.log '###############################################################################'
-	console.log '\n'
-	console.log " 		 #{_SERVER_NAME} v#{_SERVER_VERSION} WebServer ONline on port: #{_PORT}\n"
-	console.log "    		   #{_SERVER_DESCRIPTION}"
-	console.log "  	#{_SERVER_DESCRIPTION_SEQUEL}"
-	console.log '\n'
-	console.log '###############################################################################'
-	console.log '\n'
-
-	if !_DEBUG
-		console.log "Debug Mode: #{_DEBUG}\n"
-		console.log "Author: #{_SERVER_AUTHOR}"
-		console.log "License: #{_SERVER_LICENCE}"
-		console.log "WebRoot : #{_WEBROOT}\n"
-		console.log "Project Homepage : #{_SERVER_HOMEPAGE}"
-		console.log '\n'
-	else
-		console.log "Debug Mode: #{_DEBUG}\n"
-		console.log "Configuration file: #{_CONF_PATH}"
-		console.log "WebRoot : #{_WEBROOT}"
-		console.log "LibServer : #{_SERVER_INTERNAL_CONFIG}"
-		console.log "Default Index file : #{_INDEX}"
-		console.log "Default Footer : #{_FOOTER}\n"
-		console.log "Project Homepage : #{_SERVER_HOMEPAGE}"
-		console.log '\n'
-
