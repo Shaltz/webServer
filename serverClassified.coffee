@@ -89,26 +89,26 @@ class Request
 
 
 	parseHeader : ->
-		@strHeader = @reqHeader.toString 'utf8'
-		@statusLineFields = _STATUSLINE_RG.exec @strHeader
+		strHeader = @reqHeader.toString 'utf8'
+		statusLineFields = _STATUSLINE_RG.exec strHeader
 
-		if @statusLineFields is null
+		if statusLineFields is null
 			null
 
 		if _DEBUG
-			console.log '>>>>>>>>>>> Request Header :\n', @strHeader, '\n'
-			console.log '>>>>>>>>>>> StatusLine Fields :\n', @statusLineFields, '\n'
+			console.log '>>>>>>>>>>> Request Header :\n', strHeader, '\n'
+			console.log '>>>>>>>>>>> StatusLine Fields :\n', statusLineFields, '\n'
 
-		statusLine = (@statusLineFields[0].split('\\'))[0]
+		statusLine = (statusLineFields[0].split('\\'))[0]
 
 		requestInfos =
 			# statusLine: statusLine
-			method: @statusLineFields[1]
-			fullPath: @statusLineFields[2] # path + file
-			path: @statusLineFields[3] # just the path, no file
-			file: @statusLineFields[4] # file + extension
-			protocol: @statusLineFields[5]
-			protocolVersion: @statusLineFields[6]
+			method: statusLineFields[1]
+			fullPath: statusLineFields[2] # path + file
+			path: statusLineFields[3] # just the path, no file
+			file: statusLineFields[4] # file + extension
+			protocol: statusLineFields[5]
+			protocolVersion: statusLineFields[6]
 
 		requestInfos
 
@@ -157,23 +157,23 @@ class Request
 					tmpTarget = target
 
 			if @statusCode is 200 # if OK...
-				@fileToProcess = fs.createReadStream tmpTarget
-				@lastModified = stats.mtime
-				@fileSize = stats.size
-				@contentType = @getMIMEfromPath tmpTarget
-				@location = null
+				fileToProcess = fs.createReadStream tmpTarget
+				lastModified = stats.mtime
+				fileSize = stats.size
+				contentType = @getMIMEfromPath tmpTarget
+				location = null
 
 			else if @statusCode is 302
-				@location = tmpTarget
-				@lastModified = null
-				@fileSize = null
-				@contentType = null
+				location = tmpTarget
+				lastModified = null
+				fileSize = null
+				contentType = null
 
 			else # if any error...
-				@fileToProcess = new ErrorPage(@statusCode).getErrorPage()
-				@lastModified = new Date
-				@contentType = 'text/html'
-				@location = null
+				fileToProcess = new ErrorPage(@statusCode).getErrorPage()
+				lastModified = new Date
+				contentType = 'text/html'
+				location = null
 
 			infos =
 				request:
@@ -183,24 +183,24 @@ class Request
 					protocolVersion: @requestFields.protocolVersion
 				file:
 					name: @requestFields.file
-					fileToProcess: @fileToProcess
-					MIMEType: @contentType
-					mtime : @lastModified
-					size: @fileSize
-					location: @location
+					fileToProcess: fileToProcess
+					MIMEType: contentType
+					mtime : lastModified
+					size: fileSize
+					location: location
 
 			callback infos
 
 	isFolder : (reqInfos) ->
 
-		@file = reqInfos.file
-		if @file is '' || @file is undefined
+		file = reqInfos.file
+		if file is '' || file is undefined
 			if _DEBUG
-				console.log '>>>>>>>>> is a Directory: TRUE :', @file
+				console.log '>>>>>>>>> is a Directory: TRUE :', file
 			true
 		else
 			if _DEBUG
-				console.log '>>>>>>>>> is a Directory: FALSE:', @file
+				console.log '>>>>>>>>> is a Directory: FALSE:', file
 			false
 
 	# Gets the MIME content-type from the file extension... returns the MIMEType of the file as a string
@@ -209,12 +209,12 @@ class Request
 		realPath = path.normalize(filePath) # to take care of // or /.. or /.
 		extension = path.extname realPath
 		extension = extension.substr 1
-		@contentType = contentTypeArray[extension]
+		contentType = contentTypeArray[extension]
 
-		if @contentType is undefined
-			@contentType = 'text/html'
+		if contentType is undefined
+			contentType = 'text/html'
 
-		@contentType
+		contentType
 
 class Response
 	constructor : (@infos)->
@@ -222,41 +222,41 @@ class Response
 	buildHeader : (callback) ->
 		setTimeout =>
 			#File Infos
-			@statusCode = @infos.request.statusCode
-			@protocol = @infos.request.protocol
-			@protocolVersion = @infos.request.protocolVersion
-			@fileSize = @infos.file.size
-			@filelastModified = @infos.file.mtime
-			@contentType = @infos.file.MIMEType
-			@redirectLocation = @infos.file.location
+			statusCode = @infos.request.statusCode
+			protocol = @infos.request.protocol
+			protocolVersion = @infos.request.protocolVersion
+			fileSize = @infos.file.size
+			filelastModified = @infos.file.mtime
+			contentType = @infos.file.MIMEType
+			redirectLocation = @infos.file.location
 
 			# Get the Statut Message from the Statut Code
-			@statusMessage = statusCodeArray[@statusCode]
+			statusMessage = statusCodeArray[@statusCode]
 
 			# Verify that the protocol version is handled by the server, if not, changes the protocol version to the server's
-			if @protocolVersion isnt _SERVER_PROTOCOL_VERSION
-				if @protocolVersion > _SERVER_PROTOCOL_VERSION
-					@protocolVersion  = _SERVER_PROTOCOL_VERSION
+			if protocolVersion isnt _SERVER_PROTOCOL_VERSION
+				if protocolVersion > _SERVER_PROTOCOL_VERSION
+					protocolVersion  = _SERVER_PROTOCOL_VERSION
 
 			if callback
 				respHeader =
 					statusLine:
-						protocol: @protocol
-						protocolVersion: @protocolVersion
-						statusCode: @statusCode
-						statusMessage: @statusMessage
+						protocol: protocol
+						protocolVersion: protocolVersion
+						statusCode: statusCode
+						statusMessage: statusMessage
 
 					fields:
 						Date: new Date
-						'Content-Type': @contentType
-						'Content-Length': @fileSize
-						'Last-Modified': @filelastModified
-						Location: @redirectLocation
+						'Content-Type': contentType
+						'Content-Length': fileSize
+						'Last-Modified': filelastModified
+						Location: redirectLocation
 						Server: "#{_SERVER_NAME}/#{_SERVER_VERSION}"
 
 					toString : =>
 						crlf = '\r\n'
-						header = "#{@protocol}/#{@protocolVersion} #{@statusCode} #{@statusMessage}#{crlf}"
+						header = "#{protocol}/#{protocolVersion} #{statusCode} #{statusMessage}#{crlf}"
 						for key, value of respHeader.fields
 							if value isnt null
 								header += "#{key}: #{value}#{crlf}"
@@ -266,39 +266,39 @@ class Response
 		,0
 
 	process : (socket) ->
-		@fileToProcess = @infos.file.fileToProcess
-		@statusCode = @infos.request.statusCode
-		@method = @infos.request.method
+		fileToProcess = @infos.file.fileToProcess
+		statusCode = @infos.request.statusCode
+		method = @infos.request.method
 
-		if @isReadableStream @fileToProcess
+		if @isReadableStream fileToProcess
 
 			@buildHeader (respHeader)=>
 
 				socket.write respHeader.toString(), =>
 					if _DEBUG
 						console.log "FILESTREAM.OPEN : #{@infos.file.name} est ouvert !!\n"
-					@fileToProcess.pipe socket
+					fileToProcess.pipe socket
 
-				@fileToProcess.on 'end', =>
+				fileToProcess.on 'end', =>
 					if _DEBUG
 						console.log "FILESTREAM.END : #{@infos.file.name} à été servit !!\n\n"
 					socket.end()
 
-				@fileToProcess.on 'error', (err)=>
+				fileToProcess.on 'error', (err)=>
 					console.error "FILESTREAM.ERROR : il y a une erreur:", err['code'],
 					"avec le fichier : #{@infos.file.name}\n"
 
-		else if @statusCode is 302 || @method is 'HEAD'
+		else if statusCode is 302 || method is 'HEAD'
 
 			@buildHeader (respHeader)=>
 				socket.end respHeader.toString()
 
 		else
-			@infos.file.size = Buffer.byteLength @fileToProcess, 'utf8'
+			@infos.file.size = Buffer.byteLength fileToProcess, 'utf8'
 
 			@buildHeader (respHeader)=>
 				socket.write respHeader.toString(), =>
-					socket.end new ErrorPage(@statusCode).getErrorPage()
+					socket.end new ErrorPage(statusCode).getErrorPage()
 
 	# Checks that an object is a readable qstream or not... returns true/false
 	isReadableStream : (obj)->
