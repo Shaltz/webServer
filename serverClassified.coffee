@@ -21,6 +21,7 @@ stream = require 'stream'
 _SERVER_NAME = package_json.name
 _SERVER_VERSION = package_json.version
 _SERVER_DESCRIPTION = package_json.description
+_SERVER_DESCRIPTION_SEQUEL = package_json.descriptionSequel
 _SERVER_AUTHOR = package_json.author
 _SERVER_LICENCE = package_json.license
 _SERVER_HOMEPAGE = package_json.homepage
@@ -372,12 +373,13 @@ server = net.createServer (socket)->
 # Launch the server and listen to port 3333
 server.listen _PORT, ->
 	console.log '\n'
-	console.log '####################################################'
+	console.log '###############################################################################'
 	console.log '\n'
-	console.log "    #{_SERVER_NAME} v#{_SERVER_VERSION} WebServer ONline on port: #{_PORT}"
-	console.log "    #{_SERVER_DESCRIPTION}"
+	console.log " 		 #{_SERVER_NAME} v#{_SERVER_VERSION} WebServer ONline on port: #{_PORT}\n"
+	console.log "    		   #{_SERVER_DESCRIPTION}"
+	console.log "  	#{_SERVER_DESCRIPTION_SEQUEL}"
 	console.log '\n'
-	console.log '####################################################'
+	console.log '###############################################################################'
 	console.log '\n'
 
 	if !_DEBUG

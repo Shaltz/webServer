@@ -1,7 +1,8 @@
 {
   "name": "WwWaiter",
   "version": "0.2.0",
-  "description": "A simple webserver, written in coffeeScript, without any external libs and without the use of the 'http' library",
+  "description": "A simple webserver written in coffeeScript,",
+  "descriptionSequel": "without any external libs and without the use of the 'http' library",
   "main": "serverClassified.coffee",
   "dependencies": {
   },
