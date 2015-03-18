@@ -243,7 +243,7 @@ class Response
 			redirectLocation = @infos.file.location
 
 			# Get the Statut Message from the Statut Code
-			statusMessage = statusCodeArray[@statusCode]
+			statusMessage = statusCodeArray[statusCode]
 
 			# Verify that the protocol version is handled by the server, if not, changes the protocol version to the server's
 			if protocolVersion isnt _SERVER_PROTOCOL_VERSION
